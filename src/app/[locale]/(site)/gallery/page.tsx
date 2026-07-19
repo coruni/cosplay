@@ -1,5 +1,5 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { getGalleries, getAllCategories } from '@/lib/data';
+import { getGalleries, getGalleryCategoryOptions } from '@/lib/data';
 import { getShowNsfwServer } from '@/lib/nsfw';
 import { GalleryFilter } from '@/components/gallery/gallery-filter';
 import { GalleryGrid } from '@/components/gallery/gallery-grid';
@@ -76,7 +76,7 @@ export default async function GalleryPage({ params, searchParams }: Props) {
       page,
       pageSize: 12,
     }),
-    getAllCategories(),
+    getGalleryCategoryOptions(),
   ]);
 
   return (

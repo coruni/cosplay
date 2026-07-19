@@ -13,10 +13,11 @@ import {
   CheckIcon,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { SortOption } from '@/types';
+import { localizedCategoryName } from '@/lib/category-name';
+import type { SortOption, CategoryOption } from '@/types';
 
 interface GalleryFilterProps {
-  categories: string[];
+  categories: CategoryOption[];
   currentCategory?: string;
   currentSort?: SortOption;
   currentQuery?: string;
@@ -285,20 +286,20 @@ export function GalleryFilter({
 
         {categories.map((cat) => (
           <button
-            key={cat}
+            key={cat.slug}
             type="button"
-            onClick={() => handleCategoryClick(cat)}
+            onClick={() => handleCategoryClick(cat.slug)}
             className={cn(
               'shrink-0 inline-flex items-center px-3.5 py-2 rounded-full text-sm font-medium',
               'border transition-all duration-200',
               'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00d4ff]/40',
-              currentCategory === cat
+              currentCategory === cat.slug
                 ? 'bg-[#00d4ff]/10 text-[#00d4ff] border-[#00d4ff]/30 shadow-[0_0_12px_rgba(0,212,255,0.15)]'
                 : 'bg-transparent text-muted-foreground border-white/[0.08] hover:border-white/[0.2] hover:text-foreground'
             )}
             style={{ minHeight: 36 }}
           >
-            {cat}
+            {localizedCategoryName(cat.name, locale, cat.slug)}
           </button>
         ))}
       </div>

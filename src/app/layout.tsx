@@ -6,11 +6,34 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'),
   title: 'CosHub — Discover Exquisite Cosplay Collections',
   description:
     'CosHub is a platform for collecting and showcasing high-quality cosplay photo sets, with multilingual browsing and content rating filters.',
+  applicationName: 'CosHub',
+  // Default crawl policy for the whole site. NSFW detail pages override this
+  // with a hard `noindex`; see src/app/[locale]/(site)/gallery/[slug]/page.tsx.
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+    },
+  },
   icons: {
     icon: '/favicon.ico',
+  },
+  openGraph: {
+    type: 'website',
+    siteName: 'CosHub',
+    locale: 'en_US',
+  },
+  twitter: {
+    card: 'summary_large_image',
+  },
+  alternates: {
+    canonical: '/',
   },
 };
 

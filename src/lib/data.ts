@@ -1,7 +1,7 @@
 import { prisma } from './db';
 import { cacheGet, cacheSet, cacheDelete, CACHE_TTL, incrementViewCount, getViewCount } from './redis';
 import { resolveImageUrl } from './s3';
-import type { Gallery, GalleryFilter, Locale } from '@/types';
+import type { Gallery, GalleryFilter, Locale, CategoryNameMap, CategoryOption } from '@/types';
 import { Prisma } from '@prisma/client';
 
 export interface PaginatedResult {
@@ -188,7 +188,7 @@ export async function getAllCategories(): Promise<string[]> {
 export interface CategoryInfo {
   slug: string;
   icon: string;
-  name: { zh: string; en: string; ja: string };
+  name: CategoryNameMap;
 }
 
 /**
@@ -205,11 +205,38 @@ export async function getCategories(): Promise<CategoryInfo[]> {
   const result: CategoryInfo[] = rows.map((r) => ({
     slug: r.slug,
     icon: r.icon,
-    name: r.name as { zh: string; en: string; ja: string },
+    name: r.name as unknown as CategoryNameMap,
   }));
 
   await cacheSet(cacheKey, result, CACHE_TTL.CATEGORIES);
   return result;
+}
+
+/**
+ * Category options for filter UIs (e.g. the gallery page chips).
+ *
+ * Returns the distinct category slugs that are actually used by galleries
+ * (so the filter only lists selectable categories), enriched with the
+ * display `name` + `icon` from the `Category` table when a matching row
+ * exists. Falls back to the raw `slug` on the client for display.
+ */
+export async function getGalleryCategoryOptions(): Promise<CategoryOption[]> {
+  const slugs = await getAllCategories();
+  if (slugs.length === 0) return [];
+
+  const rows = await prisma.category.findMany({
+    where: { slug: { in: slugs } },
+  });
+  const bySlug = new Map(rows.map((r) => [r.slug, r]));
+
+  return slugs.map((slug) => {
+    const row = bySlug.get(slug);
+    return {
+      slug,
+      icon: row?.icon ?? null,
+      name: (row?.name as unknown as CategoryNameMap) ?? null,
+    };
+  });
 }
 
 export async function getFeaturedGalleries(

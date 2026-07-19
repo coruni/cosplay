@@ -1,5 +1,6 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server';
 import { getCategories } from '@/lib/data';
+import { localizedCategoryName } from '@/lib/category-name';
 import { routing } from '@/i18n/routing';
 import { notFound } from 'next/navigation';
 import { GalleryGrid } from '@/components/gallery/gallery-grid';
@@ -73,8 +74,7 @@ export default async function CategoriesPage({
         {/* Category Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {categories.map((cat, index) => {
-            const label =
-              cat.name[locale as keyof typeof cat.name] || t(cat.slug as keyof typeof t) || cat.slug;
+            const label = localizedCategoryName(cat.name, locale, cat.slug);
             return (
               <Link
                 key={cat.slug}

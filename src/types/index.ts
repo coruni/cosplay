@@ -7,6 +7,18 @@ export interface GalleryI18n {
   description: string;
 }
 
+export interface CategoryNameMap {
+  zh: string;
+  en: string;
+  ja: string;
+}
+
+export interface CategoryOption {
+  slug: string;
+  icon?: string | null;
+  name?: CategoryNameMap | null;
+}
+
 export interface Gallery {
   id: string;
   slug: string;
