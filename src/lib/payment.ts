@@ -19,6 +19,15 @@ const config: YipayConfig = {
   channel: process.env.YIPAY_CHANNEL || '',
 };
 
+/**
+ * Mock payment is ONLY allowed in non-production AND when no real gateway is
+ * configured. In production we NEVER fall back to mock — a missing YIPAY_PID
+ * there is a hard configuration error, not a reason to fake a successful order.
+ */
+export function isMockPaymentEnabled(): boolean {
+  return process.env.NODE_ENV !== 'production' && !process.env.YIPAY_PID;
+}
+
 function md5(str: string): string {
   return crypto.createHash('md5').update(str).digest('hex');
 }
@@ -68,8 +77,8 @@ export async function createPaymentOrder(
   params.sign = generateSign(params);
   params.sign_type = 'MD5';
 
-  // 在模拟模式下，直接返回成功
-  if (!process.env.YIPAY_PID) {
+  // 模拟模式：仅在「非生产环境且未配置真实网关」时启用；生产环境永不 mock。
+  if (isMockPaymentEnabled()) {
     console.log('[Mock Payment] Created order:', orderId, 'Amount:', amount, 'Type:', type);
 
     // Store in database
@@ -94,6 +103,14 @@ export async function createPaymentOrder(
       paymentUrl: `${baseUrl}${localePrefix}/payment/success?orderId=${orderId}${galleryPart}&type=${type}&mock=true`,
       createdAt: new Date().toISOString(),
     };
+  }
+
+  // 真实支付模式必须配齐易支付参数，否则会用占位符生成指向假网关的链接。
+  // 生产环境缺配置属于硬性错误，直接抛出以便尽早暴露（而非静默 mock）。
+  if (!process.env.YIPAY_PID || !process.env.YIPAY_KEY || !process.env.YIPAY_API_URL) {
+    throw new Error(
+      'Payment gateway not configured: YIPAY_PID / YIPAY_KEY / YIPAY_API_URL are required in production.'
+    );
   }
 
   // 存储到数据库

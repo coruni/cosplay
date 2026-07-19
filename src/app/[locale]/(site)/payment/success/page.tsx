@@ -3,7 +3,7 @@ import { routing } from '@/i18n/routing';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { confirmPayment, getPaymentOrder } from '@/lib/payment';
+import { confirmPayment, getPaymentOrder, isMockPaymentEnabled } from '@/lib/payment';
 import { activateSubscription } from '@/lib/subscription';
 import { prisma } from '@/lib/db';
 import { CheckCircle2, ArrowRight } from 'lucide-react';
@@ -24,8 +24,12 @@ export default async function PaymentSuccessPage({
   const t = await getTranslations({ locale, namespace: 'payment' });
   const sp = await searchParams;
 
-  // Auto-confirm payment on success page (mock or real)
-  if (sp.orderId) {
+  // Auto-confirm ONLY in mock mode. This page is the gateway return_url (a
+  // browser redirect the user controls), so it must NEVER be trusted to confirm
+  // a real payment — anyone could hit /payment/success?orderId=xxx and unlock
+  // for free. In production, confirmation/activation happens solely via the
+  // signed server webhook at /api/payment/notify.
+  if (isMockPaymentEnabled() && sp.orderId) {
     try {
       const order = await prisma.paymentOrder.findUnique({
         where: { orderId: sp.orderId },
