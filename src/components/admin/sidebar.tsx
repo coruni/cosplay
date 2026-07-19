@@ -9,6 +9,7 @@ import {
   ImageIcon,
   CreditCardIcon,
   UsersIcon,
+  TagsIcon,
   LogOutIcon,
   XIcon,
   ChevronLeftIcon,
@@ -19,6 +20,7 @@ import { cn } from '@/lib/utils';
 const navItems = [
   { href: '/admin', label: '仪表盘', icon: LayoutDashboardIcon },
   { href: '/admin/galleries', label: '图包管理', icon: ImageIcon },
+  { href: '/admin/categories', label: '分类管理', icon: TagsIcon },
   { href: '/admin/orders', label: '订单管理', icon: CreditCardIcon },
   { href: '/admin/users', label: '用户管理', icon: UsersIcon },
 ];

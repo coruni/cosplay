@@ -312,8 +312,32 @@ const orders = [
   { orderId: 'ORD-NSFW-0004', gallerySlug: 'kill-la-kill-ryuko-satsuki', userUsername: 'freeuser',   amount: 26.9, status: 'failed', type: 'gallery' },
 ];
 
+// ── 分类目录（写入 Category 表，供后台选择 / 前台图标使用）──
+// slug 必须与图包数据里使用的 categories 值一致（大小写敏感）。
+const categories = [
+  { slug: 'game',     icon: '🎮', sortOrder: 1, name: { zh: '游戏',   en: 'Game',     ja: 'ゲーム' } },
+  { slug: 'anime',    icon: '🎬', sortOrder: 2, name: { zh: '动画',   en: 'Anime',    ja: 'アニメ' } },
+  { slug: 'manga',    icon: '📚', sortOrder: 3, name: { zh: '漫画',   en: 'Manga',    ja: 'マンガ' } },
+  { slug: 'movie',    icon: '🎥', sortOrder: 4, name: { zh: '电影',   en: 'Movie',    ja: '映画' } },
+  { slug: 'original', icon: '✨', sortOrder: 5, name: { zh: '原创',   en: 'Original', ja: 'オリジナル' } },
+  { slug: 'swimsuit', icon: '🏖️', sortOrder: 6, name: { zh: '泳装',   en: 'Swimsuit', ja: '水着' } },
+  { slug: 'lingerie', icon: '💋', sortOrder: 7, name: { zh: '内衣',   en: 'Lingerie', ja: 'ランジェリー' } },
+  { slug: 'school',   icon: '🎒', sortOrder: 8, name: { zh: '校园',   en: 'School',   ja: 'スクール' } },
+  { slug: 'fantasy',  icon: '🧙', sortOrder: 9, name: { zh: '奇幻',   en: 'Fantasy',  ja: 'ファンタジー' } },
+];
+
 async function main() {
   console.log('Seeding database...');
+
+  // 0) Categories
+  for (const c of categories) {
+    await prisma.category.upsert({
+      where: { slug: c.slug },
+      update: { name: c.name, icon: c.icon, sortOrder: c.sortOrder },
+      create: c,
+    });
+  }
+  console.log(`  ✓ ${categories.length} categories`);
 
   // 1) Galleries (SFW + NSFW)
   const slugToId = new Map<string, string>();
@@ -381,13 +405,14 @@ async function main() {
     console.log(`  ✓ order ${o.orderId} [${o.status}/${o.type}]`);
   }
 
-  const [gCount, uCount, oCount] = await Promise.all([
+  const [gCount, uCount, oCount, cCount] = await Promise.all([
     prisma.gallery.count(),
     prisma.user.count(),
     prisma.paymentOrder.count(),
+    prisma.category.count(),
   ]);
   const nsfwCount = await prisma.gallery.count({ where: { rating: 'nsfw' } });
-  console.log(`\nDone! ${gCount} galleries (${nsfwCount} nsfw), ${uCount} users, ${oCount} orders.`);
+  console.log(`\nDone! ${cCount} categories, ${gCount} galleries (${nsfwCount} nsfw), ${uCount} users, ${oCount} orders.`);
 }
 
 main()

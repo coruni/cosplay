@@ -185,6 +185,33 @@ export async function getAllCategories(): Promise<string[]> {
   return categories;
 }
 
+export interface CategoryInfo {
+  slug: string;
+  icon: string;
+  name: { zh: string; en: string; ja: string };
+}
+
+/**
+ * Categories from the dedicated `Category` table (source of truth for icon +
+ * display name). Sorted by `sortOrder`. Falls back to an empty list if the
+ * table is empty so callers can degrade gracefully.
+ */
+export async function getCategories(): Promise<CategoryInfo[]> {
+  const cacheKey = 'categories:db';
+  const cached = await cacheGet<CategoryInfo[]>(cacheKey);
+  if (cached) return cached;
+
+  const rows = await prisma.category.findMany({ orderBy: { sortOrder: 'asc' } });
+  const result: CategoryInfo[] = rows.map((r) => ({
+    slug: r.slug,
+    icon: r.icon,
+    name: r.name as { zh: string; en: string; ja: string },
+  }));
+
+  await cacheSet(cacheKey, result, CACHE_TTL.CATEGORIES);
+  return result;
+}
+
 export async function getFeaturedGalleries(
   limit = 6,
   showNsfw = false

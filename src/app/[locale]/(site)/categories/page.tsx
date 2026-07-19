@@ -1,11 +1,10 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { getAllCategories, getGalleries } from '@/lib/data';
+import { getCategories } from '@/lib/data';
 import { routing } from '@/i18n/routing';
 import { notFound } from 'next/navigation';
 import { GalleryGrid } from '@/components/gallery/gallery-grid';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
-import { getCategoryIcon } from '@/lib/categories';
 
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
@@ -36,7 +35,7 @@ export default async function CategoriesPage({
   setRequestLocale(locale);
 
   const t = await getTranslations({ locale, namespace: 'categories' });
-  const categories = await getAllCategories();
+  const categories = await getCategories();
 
   return (
     <div className="min-h-screen">
@@ -74,11 +73,12 @@ export default async function CategoriesPage({
         {/* Category Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
           {categories.map((cat, index) => {
-            const label = t(cat as keyof typeof t) || cat;
+            const label =
+              cat.name[locale as keyof typeof cat.name] || t(cat.slug as keyof typeof t) || cat.slug;
             return (
               <Link
-                key={cat}
-                href={`/${locale}/gallery?category=${cat}`}
+                key={cat.slug}
+                href={`/${locale}/gallery?category=${cat.slug}`}
                 className={cn(
                   'group relative overflow-hidden rounded-xl border border-white/[0.06]',
                   'bg-[#14141f]/80 backdrop-blur-sm',
@@ -101,7 +101,7 @@ export default async function CategoriesPage({
                     'transition-all duration-300'
                   )}
                 >
-                  <span className="text-2xl">{getCategoryIcon(cat)}</span>
+                  <span className="text-2xl">{cat.icon}</span>
                 </div>
                 <span className="text-sm font-medium text-foreground/80 group-hover:text-foreground transition-colors">
                   {label}

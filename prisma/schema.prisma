@@ -71,3 +71,13 @@ model PaymentOrder {
   createdAt    DateTime @default(now())
   paidAt       DateTime?
 }
+
+model Category {
+  id        String   @id @default(cuid())
+  slug      String   @unique
+  name      Json     // { zh: string, en: string, ja: string }
+  icon      String   @default("📷")
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
