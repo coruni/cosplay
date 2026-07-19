@@ -1,0 +1,73 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Gallery {
+  id            String    @id @default(cuid())
+  slug          String    @unique
+  titleZh       String
+  titleEn       String
+  titleJa       String
+  descriptionZh String
+  descriptionEn String
+  descriptionJa String
+  cosplayer     String
+  character     String
+  series        String
+  cover         String
+  images        String[]  // PostgreSQL array type
+  categories    String[]
+  tags          String[]
+  rating        String    @default("sfw") // sfw | nsfw
+  price         Float     @default(0)
+  isPremium     Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  viewCount     Int       @default(0)
+  downloadCount Int       @default(0)
+  downloadUrl  String?  // 外链下载地址（网盘/外部链接，可选）；填写后详情页"下载"跳转到该链接
+
+  // Relations
+  orders        PaymentOrder[]
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  username     String    @unique
+  passwordHash String
+  nickname     String?
+  avatar       String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Subscription / membership
+  isSubscribed       Boolean   @default(false)
+  subscriptionStartAt DateTime?
+  subscriptionEndAt   DateTime?
+  quotaTotal         Int       @default(120) // monthly quota (unlock + download combined)
+  quotaUsed          Int       @default(0)
+  quotaCycle         Int       @default(0) // index of current 30-day cycle for reset tracking
+
+  // Relations
+  orders       PaymentOrder[]
+}
+
+model PaymentOrder {
+  id           String   @id @default(cuid())
+  orderId      String   @unique
+  galleryId    String?
+  gallery      Gallery? @relation(fields: [galleryId], references: [id])
+  userId       String?
+  user         User?    @relation(fields: [userId], references: [id])
+  amount       Float
+  status       String   @default("pending") // pending | paid | failed
+  type         String   @default("gallery") // gallery | subscription
+  paymentUrl   String?
+  createdAt    DateTime @default(now())
+  paidAt       DateTime?
+}

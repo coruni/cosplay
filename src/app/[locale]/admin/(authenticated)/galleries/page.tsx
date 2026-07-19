@@ -1,0 +1,646 @@
+'use client';
+
+import { useState, useEffect, useCallback, type ReactNode } from 'react';
+import { useRouter } from 'next/navigation';
+import { motion } from 'framer-motion';
+import {
+  PlusIcon,
+  SearchIcon,
+  PencilIcon,
+  Trash2Icon,
+  EyeIcon,
+  ImageIcon,
+  Loader2Icon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+} from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Badge } from '@/components/ui/badge';
+import { cn } from '@/lib/utils';
+import { useLocale } from 'next-intl';
+import { ImageUploader } from '@/components/admin/image-uploader';
+import { TagInput } from '@/components/admin/tag-input';
+import { resolveImageUrl } from '@/lib/s3';
+
+const slugify = (s: string) =>
+  s
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+const SectionTitle = ({ children }: { children: ReactNode }) => (
+  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground/70 -mb-1">
+    {children}
+  </h3>
+);
+
+interface GalleryItem {
+  id: string;
+  slug: string;
+  titleZh: string;
+  titleEn: string;
+  titleJa: string;
+  descriptionZh: string;
+  descriptionEn: string;
+  descriptionJa: string;
+  cosplayer: string;
+  character: string;
+  series: string;
+  cover: string;
+  images: string[];
+  categories: string[];
+  tags: string[];
+  rating: string;
+  price: number;
+  isPremium: boolean;
+  downloadUrl: string;
+  viewCount: number;
+  downloadCount: number;
+  createdAt: string;
+}
+
+const emptyForm: Partial<GalleryItem> = {
+  slug: '',
+  titleZh: '', titleEn: '', titleJa: '',
+  descriptionZh: '', descriptionEn: '', descriptionJa: '',
+  cosplayer: '', character: '', series: '',
+  cover: '',
+  images: [],
+  categories: [],
+  tags: [],
+  rating: 'sfw',
+  price: 0,
+  isPremium: false,
+  downloadUrl: '',
+};
+
+export default function AdminGalleriesPage() {
+  const [galleries, setGalleries] = useState<GalleryItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState('');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editing, setEditing] = useState<GalleryItem | null>(null);
+  const [form, setForm] = useState<Partial<GalleryItem>>(emptyForm);
+  const [saving, setSaving] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [slugTouched, setSlugTouched] = useState(false);
+  const [uploadProvider, setUploadProvider] = useState<'s3' | 'imagehost'>('s3');
+  const router = useRouter();
+  const locale = useLocale();
+
+  const validate = (f: Partial<GalleryItem>): Record<string, string> => {
+    const e: Record<string, string> = {};
+    if (!f.titleZh?.trim()) e.titleZh = '请填写中文标题';
+    if (!f.slug?.trim()) {
+      e.slug = '请填写 Slug';
+    } else if (!/^[a-z0-9-]+$/.test(f.slug)) {
+      e.slug = 'Slug 只能包含小写字母、数字和连字符';
+    }
+    if (f.isPremium && (f.price ?? 0) <= 0) {
+      e.price = '付费图包价格需大于 0';
+    }
+    if (!f.cover) e.cover = '请上传封面图';
+    if (!f.images || f.images.length === 0) e.images = '请至少上传一张图包图片';
+    return e;
+  };
+
+  const fetchGalleries = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({ page: String(page), query });
+      const res = await fetch(`/admin/api/galleries?${params}`);
+      if (res.status === 401) { router.push(`/${locale}/admin/login`); return; }
+      const data = await res.json();
+      setGalleries(data.items);
+      setTotalPages(data.totalPages);
+    } catch (e) {
+      console.error('Fetch galleries failed:', e);
+    } finally {
+      setLoading(false);
+    }
+  }, [page, query, router]);
+
+  useEffect(() => { fetchGalleries(); }, [fetchGalleries]);
+
+  const openCreate = () => {
+    setEditing(null);
+    setErrors({});
+    setSlugTouched(false);
+    setForm({ ...emptyForm, slug: '' });
+    setDialogOpen(true);
+  };
+
+  const openEdit = (g: GalleryItem) => {
+    setEditing(g);
+    setErrors({});
+    setSlugTouched(true);
+    setForm({ ...g });
+    setDialogOpen(true);
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    const e = validate(form);
+    setErrors(e);
+    if (Object.keys(e).length > 0) {
+      setSaving(false);
+      return;
+    }
+    try {
+      const method = editing ? 'PUT' : 'POST';
+      const body = editing ? { ...form, id: editing.id } : form;
+      const res = await fetch('/admin/api/galleries', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      if (res.status === 401) { router.push(`/${locale}/admin/login`); return; }
+      if (res.ok) {
+        setDialogOpen(false);
+        fetchGalleries();
+      }
+    } catch (e) {
+      console.error('Save failed:', e);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      const res = await fetch(`/admin/api/galleries?id=${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setDeleteConfirm(null);
+        fetchGalleries();
+      }
+    } catch (e) {
+      console.error('Delete failed:', e);
+    }
+  };
+
+  const updateForm = (key: string, value: unknown) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    setErrors((prev) => {
+      if (!prev[key]) return prev;
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  // Auto-derive slug from the title until the admin edits it manually.
+  const onTitleChange = (lang: 'Zh' | 'En' | 'Ja', v: string) => {
+    updateForm(`title${lang}`, v);
+    if (slugTouched) return;
+    const canUse = lang === 'En' || !form.titleEn;
+    if (canUse) {
+      const s = slugify(v);
+      if (s) updateForm('slug', s);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Toolbar */}
+      <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center justify-between">
+        <div className="relative flex-1 max-w-sm">
+          <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
+          <Input
+            placeholder="搜索图包..."
+            value={query}
+            onChange={(e) => { setQuery(e.target.value); setPage(1); }}
+            className="pl-9 bg-white/[0.03] border-white/[0.08]"
+            style={{ minHeight: 44 }}
+          />
+        </div>
+        <Button
+          onClick={openCreate}
+          className="bg-[#ff2d78] hover:bg-[#ff2d78]/90 text-white"
+          style={{ boxShadow: '0 0 16px rgba(255,45,120,0.3)' }}
+        >
+          <PlusIcon className="size-4 mr-2" />
+          新增图包
+        </Button>
+      </div>
+
+      {/* Table */}
+      <div className="rounded-xl bg-[#14141f] border border-white/[0.06] overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-white/[0.06] bg-white/[0.01]">
+                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">封面</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">标题</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground hidden md:table-cell">Cosplayer</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground hidden lg:table-cell">分级</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground hidden lg:table-cell">价格</th>
+                <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-12 text-center">
+                    <Loader2Icon className="size-6 animate-spin mx-auto text-muted-foreground" />
+                  </td>
+                </tr>
+              ) : galleries.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
+                    <ImageIcon className="size-8 mx-auto mb-2 opacity-40" />
+                    暂无图包
+                  </td>
+                </tr>
+              ) : (
+                galleries.map((g) => (
+                  <tr key={g.id} className="border-b border-white/[0.02] hover:bg-white/[0.02] transition-colors">
+                    <td className="px-4 py-3">
+                      <div className="size-10 rounded-lg bg-[#0a0a0f] border border-white/[0.06] overflow-hidden">
+                        {g.cover ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={resolveImageUrl(g.cover)}
+                            alt={g.titleZh}
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="w-full h-full bg-gradient-to-br from-[#ff2d78]/20 to-[#00d4ff]/20 flex items-center justify-center">
+                            <ImageIcon className="size-4 text-muted-foreground" />
+                          </div>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3">
+                      <p className="text-foreground font-medium truncate max-w-[200px]">{g.titleZh}</p>
+                      <p className="text-xs text-muted-foreground">{g.slug}</p>
+                    </td>
+                    <td className="px-4 py-3 hidden md:table-cell text-muted-foreground">{g.cosplayer}</td>
+                    <td className="px-4 py-3 hidden lg:table-cell">
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          'text-xs border',
+                          g.rating === 'nsfw'
+                            ? 'bg-violet-500/10 text-violet-400 border-violet-500/20'
+                            : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                        )}
+                      >
+                        {g.rating.toUpperCase()}
+                      </Badge>
+                    </td>
+                    <td className="px-4 py-3 hidden lg:table-cell">
+                      <span className={cn(g.isPremium ? 'text-[#ff2d78]' : 'text-emerald-400', 'font-medium')}>
+                        {g.isPremium ? `¥${g.price}` : '免费'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => openEdit(g)}
+                          className="size-9 flex items-center justify-center rounded-lg text-muted-foreground hover:text-[#00d4ff] hover:bg-[#00d4ff]/10 transition-colors"
+                          aria-label="编辑"
+                        >
+                          <PencilIcon className="size-4" />
+                        </button>
+                        <button
+                          onClick={() => setDeleteConfirm(g.id)}
+                          className="size-9 flex items-center justify-center rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                          aria-label="删除"
+                        >
+                          <Trash2Icon className="size-4" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Pagination */}
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between px-4 py-3 border-t border-white/[0.06]">
+            <span className="text-xs text-muted-foreground">
+              第 {page} / {totalPages} 页
+            </span>
+            <div className="flex gap-1">
+              <Button
+                variant="ghost"
+                size="icon"
+                disabled={page <= 1}
+                onClick={() => setPage(page - 1)}
+                className="size-8"
+              >
+                <ChevronLeftIcon className="size-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                disabled={page >= totalPages}
+                onClick={() => setPage(page + 1)}
+                className="size-8"
+              >
+                <ChevronRightIcon className="size-4" />
+              </Button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Edit/Create Dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="bg-[#14141f] border-white/[0.08] max-w-5xl max-h-[92vh] overflow-hidden scrollbar-hide">
+          <DialogHeader className="shrink-0">
+            <DialogTitle className="text-lg" style={{ fontFamily: 'Orbitron, sans-serif' }}>
+              {editing ? '编辑图包' : '新增图包'}
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide space-y-6 py-2 pr-1">
+            {/* Section: 基础信息 */}
+            <section className="space-y-4">
+              <SectionTitle>基础信息</SectionTitle>
+
+              {/* Slug */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Slug（URL 标识，自动从标题生成，可手动修改）</Label>
+                <Input
+                  value={form.slug || ''}
+                  onChange={(e) => {
+                    setSlugTouched(true);
+                    updateForm('slug', e.target.value);
+                  }}
+                  className="bg-white/[0.03] border-white/[0.08] font-mono text-sm"
+                  style={{ minHeight: 40 }}
+                  placeholder="例如 2b-yukian"
+                />
+                {errors.slug && <p className="text-xs text-red-400">{errors.slug}</p>}
+              </div>
+
+              {/* Titles */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {errors.titleZh && (
+                  <p className="col-span-full text-xs text-red-400">{errors.titleZh}</p>
+                )}
+                {(['Zh', 'En', 'Ja'] as const).map((lang) => (
+                  <div key={lang} className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">
+                      标题 ({lang === 'Zh' ? '中文' : lang === 'En' ? 'English' : '日本語'})
+                    </Label>
+                    <Input
+                      value={(form as any)[`title${lang}`] || ''}
+                      onChange={(e) => onTitleChange(lang, e.target.value)}
+                      className="bg-white/[0.03] border-white/[0.08]"
+                      style={{ minHeight: 40 }}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              {/* Descriptions */}
+              <div className="grid grid-cols-1 gap-3">
+                {(['Zh', 'En', 'Ja'] as const).map((lang) => (
+                  <div key={lang} className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">
+                      描述 ({lang === 'Zh' ? '中文' : lang === 'En' ? 'English' : '日本語'})
+                    </Label>
+                    <Textarea
+                      value={(form as any)[`description${lang}`] || ''}
+                      onChange={(e) => updateForm(`description${lang}`, e.target.value)}
+                      className="bg-white/[0.03] border-white/[0.08] min-h-[60px]"
+                      rows={2}
+                    />
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Section: 关联信息 */}
+            <section className="space-y-4">
+              <SectionTitle>关联信息</SectionTitle>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {[
+                  { key: 'cosplayer', label: 'Cosplayer' },
+                  { key: 'character', label: '角色' },
+                  { key: 'series', label: '原作' },
+                ].map(({ key, label }) => (
+                  <div key={key} className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">{label}</Label>
+                    <Input
+                      value={(form as any)[key] || ''}
+                      onChange={(e) => updateForm(key, e.target.value)}
+                      className="bg-white/[0.03] border-white/[0.08]"
+                      style={{ minHeight: 40 }}
+                    />
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            {/* Section: 媒体资源 */}
+            <section className="space-y-4">
+              <SectionTitle>媒体资源</SectionTitle>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-xs text-muted-foreground">存储后端</span>
+                <div className="inline-flex rounded-lg border border-white/[0.08] overflow-hidden">
+                  {(['s3', 'imagehost'] as const).map((p) => (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setUploadProvider(p)}
+                      className={cn(
+                        'px-3 h-8 text-xs font-medium transition-colors',
+                        uploadProvider === p
+                          ? 'bg-[#ff2d78] text-white'
+                          : 'bg-white/[0.03] text-muted-foreground hover:bg-white/[0.06]'
+                      )}
+                    >
+                      {p === 's3' ? 'S3 对象存储' : '外部图床'}
+                    </button>
+                  ))}
+                </div>
+                {uploadProvider === 'imagehost' && (
+                  <span className="text-xs text-muted-foreground/70">
+                    {form.rating === 'nsfw'
+                      ? 'NSFW 图集将以 nsfw=1 标记上传'
+                      : '将以 nsfw=0 上传'}
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <ImageUploader
+                    folder={`galleries/${form.slug || 'tmp'}`}
+                    value={form.cover || ''}
+                    onChange={(v) => updateForm('cover', v)}
+                    provider={uploadProvider}
+                    nsfw={form.rating === 'nsfw'}
+                    label="封面图"
+                  />
+                  {errors.cover && (
+                    <p className="text-xs text-red-400">{errors.cover}</p>
+                  )}
+                </div>
+                <div className="space-y-1.5">
+                  <ImageUploader
+                    folder={`galleries/${form.slug || 'tmp'}`}
+                    value={form.images || []}
+                    onChange={(v) => updateForm('images', v)}
+                    cover={form.cover}
+                    onSetCover={(k) => updateForm('cover', k)}
+                    multiple
+                    provider={uploadProvider}
+                    nsfw={form.rating === 'nsfw'}
+                    label="图包图片（点击缩略图可设为封面）"
+                  />
+                  {errors.images && (
+                    <p className="text-xs text-red-400">{errors.images}</p>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            {/* Section: 分类 & 标签 */}
+            <section className="space-y-4">
+              <SectionTitle>分类 &amp; 标签</SectionTitle>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <TagInput
+                  label="分类（回车添加）"
+                  value={form.categories || []}
+                  onChange={(tags) => updateForm('categories', tags)}
+                  placeholder="如：FGO, 原神"
+                />
+                <TagInput
+                  label="标签（回车添加）"
+                  value={form.tags || []}
+                  onChange={(tags) => updateForm('tags', tags)}
+                  placeholder="如：剑姬, 黑丝"
+                />
+              </div>
+            </section>
+
+            {/* Section: 发布设置 */}
+            <section className="space-y-4">
+              <SectionTitle>发布设置</SectionTitle>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">分级</Label>
+                  <select
+                    value={form.rating || 'sfw'}
+                    onChange={(e) => updateForm('rating', e.target.value)}
+                    className="w-full h-10 rounded-lg bg-white/[0.03] border border-white/[0.08] text-foreground text-sm px-3"
+                  >
+                    <option value="sfw">SFW 全年龄</option>
+                    <option value="nsfw">NSFW</option>
+                  </select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs text-muted-foreground">价格 (¥)</Label>
+                  <Input
+                    type="number"
+                    step="0.01"
+                    value={form.price || 0}
+                    onChange={(e) => updateForm('price', parseFloat(e.target.value) || 0)}
+                    className={cn(
+                      'bg-white/[0.03] border-white/[0.08]',
+                      form.isPremium && (form.price ?? 0) <= 0 && 'border-amber-500/50'
+                    )}
+                    style={{ minHeight: 40 }}
+                  />
+                  {errors.price && <p className="text-xs text-red-400">{errors.price}</p>}
+                  {form.isPremium && (form.price ?? 0) <= 0 && !errors.price && (
+                    <p className="text-xs text-amber-400/80">付费图包建议设置大于 0 的价格</p>
+                  )}
+                </div>
+                <div className="space-y-1.5 flex items-end pb-1">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.isPremium || false}
+                      onChange={(e) => updateForm('isPremium', e.target.checked)}
+                      className="size-4 rounded accent-[#ff2d78]"
+                    />
+                    <span className="text-xs text-muted-foreground">付费图包</span>
+                  </label>
+                </div>
+              </div>
+
+              {/* 外链下载地址（网盘/外部链接，可选） */}
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">
+                  外链下载地址（网盘/外部链接，可选）
+                </Label>
+                <Input
+                  value={form.downloadUrl || ''}
+                  onChange={(e) => updateForm('downloadUrl', e.target.value)}
+                  placeholder="如：https://pan.baidu.com/s/xxxx 或 https://drive.google.com/..."
+                  className="bg-white/[0.03] border-white/[0.08]"
+                  style={{ minHeight: 40 }}
+                />
+                <p className="text-xs text-muted-foreground/70">
+                  填写后，详情页「下载」按钮将跳转到该外部链接，而非打包站内图片。
+                </p>
+              </div>
+            </section>
+          </div>
+
+          {/* Actions (sticky footer, outside scroll region) */}
+          <div className="shrink-0 flex justify-end gap-3 pt-3 border-t border-white/[0.06]">
+            <Button variant="ghost" onClick={() => setDialogOpen(false)} className="text-muted-foreground">
+              取消
+            </Button>
+            <Button
+              onClick={handleSave}
+              disabled={saving}
+              className="bg-[#ff2d78] hover:bg-[#ff2d78]/90 text-white"
+              style={{ boxShadow: '0 0 16px rgba(255,45,120,0.3)' }}
+            >
+              {saving ? (
+                <Loader2Icon className="size-4 animate-spin mr-2" />
+              ) : null}
+              {editing ? '保存修改' : '创建图包'}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
+        <DialogContent className="bg-[#14141f] border-white/[0.08] max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-lg">确认删除</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            此操作不可撤销。确定要删除这个图包吗？
+          </p>
+          <div className="flex justify-end gap-3 pt-2">
+            <Button variant="ghost" onClick={() => setDeleteConfirm(null)} className="text-muted-foreground">
+              取消
+            </Button>
+            <Button
+              onClick={() => deleteConfirm && handleDelete(deleteConfirm)}
+              className="bg-red-500 hover:bg-red-600 text-white"
+            >
+              确认删除
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
