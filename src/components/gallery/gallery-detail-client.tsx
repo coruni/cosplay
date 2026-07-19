@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useReducedMotion } from '@/lib/use-reduced-motion';
 import { useTranslations, useLocale } from 'next-intl';
@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { Gallery } from '@/types';
+import { redirectToGateway } from '@/lib/payment-redirect';
 
 interface GalleryDetailClientProps {
   gallery: Gallery;
@@ -65,6 +66,9 @@ export function GalleryDetailClient({
   const [nsfwRevealed, setNsfwRevealed] = useState(false);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
+  // Touch swipe tracking for the lightbox (mobile).
+  const lightboxTouchStart = useRef<{ x: number; y: number } | null>(null);
+  const lightboxSwiped = useRef(false);
   const [showAgeGate, setShowAgeGate] = useState(false);
 
   const isNsfw = gallery.rating === 'nsfw';
@@ -146,8 +150,8 @@ export function GalleryDetailClient({
           setLocalUnlock(true);
           toast.success(t('alreadyUnlocked'));
         } else {
-          // Real payment flow — redirect
-          window.location.href = order.paymentUrl;
+          // Real payment flow — redirect (兼容 iOS Safari 等严格浏览器)
+          redirectToGateway(order.paymentUrl);
         }
       }
     } catch (error) {
@@ -198,31 +202,19 @@ export function GalleryDetailClient({
         () => {}
       );
 
-      // External link (网盘/外部链接) → jump out to that source.
+      // On-site images are NOT directly downloadable. The only download path is
+      // the external link (网盘/外部链接), which we open in a new tab.
       if (gallery.downloadUrl) {
         window.open(gallery.downloadUrl, '_blank', 'noopener,noreferrer');
         toast.success(t('downloadExternal'));
-        return;
       }
-
-      for (const img of allImages) {
-        const a = document.createElement('a');
-        a.href = img;
-        a.target = '_blank';
-        a.rel = 'noopener';
-        document.body.appendChild(a);
-        a.click();
-        a.remove();
-        await new Promise((r) => setTimeout(r, 300));
-      }
-      toast.success(t('downloadAll'));
     } catch (error) {
       console.error('Download failed:', error);
       toast.error('Download failed. Please try again.');
     } finally {
       setIsDownloading(false);
     }
-  }, [allImages, isOwned, localUnlock, membershipActive, locale, router, t, tSub, gallery.slug, gallery.downloadUrl]);
+  }, [isOwned, localUnlock, membershipActive, locale, router, t, tSub, gallery.slug, gallery.downloadUrl]);
 
   // Lightbox
   const openLightbox = useCallback(
@@ -260,14 +252,59 @@ export function GalleryDetailClient({
     });
   }, [allImages, lockedImages]);
 
-  // Keyboard navigation for lightbox
-  const handleLightboxKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
+  // Keyboard navigation for lightbox — attach to document so it works without
+  // the dialog needing focus, and lock background scroll while it's open.
+  useEffect(() => {
+    if (!lightboxOpen) return;
+    const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') closeLightbox();
-      if (e.key === 'ArrowLeft') lightboxPrev();
-      if (e.key === 'ArrowRight') lightboxNext();
+      else if (e.key === 'ArrowLeft') lightboxPrev();
+      else if (e.key === 'ArrowRight') lightboxNext();
+    };
+    document.addEventListener('keydown', onKey);
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [lightboxOpen, closeLightbox, lightboxPrev, lightboxNext]);
+
+  // Touch swipe for the lightbox (mobile left/right).
+  const handleLightboxTouchStart = useCallback((e: React.TouchEvent) => {
+    const t = e.touches[0];
+    lightboxTouchStart.current = { x: t.clientX, y: t.clientY };
+    lightboxSwiped.current = false;
+  }, []);
+
+  const handleLightboxTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      const start = lightboxTouchStart.current;
+      lightboxTouchStart.current = null;
+      if (!start) return;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - start.x;
+      const dy = t.clientY - start.y;
+      // Only treat as a horizontal swipe (dominant axis + min distance).
+      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
+        lightboxSwiped.current = true;
+        if (dx < 0) lightboxNext();
+        else lightboxPrev();
+      }
     },
-    [closeLightbox, lightboxPrev, lightboxNext]
+    [lightboxNext, lightboxPrev]
+  );
+
+  // Backdrop click closes, but a swipe that may emit a trailing click must not.
+  const handleLightboxBackdropClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (lightboxSwiped.current) {
+        lightboxSwiped.current = false;
+        return;
+      }
+      closeLightbox();
+    },
+    [closeLightbox]
   );
 
   return (
@@ -374,7 +411,7 @@ export function GalleryDetailClient({
           </motion.div>
         )}
 
-        {isGated && canViewAll && (
+        {isGated && canViewAll && hasExternal && (
           <motion.div
             initial={
               shouldReduceMotion ? undefined : { opacity: 0, scale: 0.95 }
@@ -668,9 +705,9 @@ export function GalleryDetailClient({
             exit={{ opacity: 0 }}
             transition={{ duration: 0.2 }}
             className="fixed inset-0 z-50 flex items-center justify-center bg-black/95 backdrop-blur-md"
-            onClick={closeLightbox}
-            onKeyDown={handleLightboxKeyDown}
-            tabIndex={0}
+            onClick={handleLightboxBackdropClick}
+            onTouchStart={handleLightboxTouchStart}
+            onTouchEnd={handleLightboxTouchEnd}
             role="dialog"
             aria-modal="true"
             aria-label="Image viewer"
@@ -728,6 +765,7 @@ export function GalleryDetailClient({
               }
               transition={{ duration: 0.2 }}
               className="relative w-full h-full max-w-5xl max-h-[90vh] m-8"
+              style={{ touchAction: 'none' }}
               onClick={(e) => e.stopPropagation()}
             >
               <Image

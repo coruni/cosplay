@@ -16,6 +16,7 @@ import {
 import { cn } from '@/lib/utils';
 import { Gallery } from '@/types';
 import { toast } from 'sonner';
+import { redirectToGateway } from '@/lib/payment-redirect';
 
 interface PremiumLockProps {
   gallery: Gallery;
@@ -58,7 +59,7 @@ export function PremiumLock({ gallery, isPurchased = false, className }: Premium
           setLocalUnlock(true);
           setPayDialogOpen(false);
         } else {
-          window.location.href = order.paymentUrl;
+          redirectToGateway(order.paymentUrl);
         }
       }
     } catch {

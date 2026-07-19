@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
+import { redirectToGateway } from '@/lib/payment-redirect';
 
 interface MembershipPanelProps {
   isSubscribed: boolean;
@@ -93,7 +94,7 @@ export function MembershipPanel(props: MembershipPanelProps) {
         await refresh();
         toast.success(t('success'));
       } else if (order.paymentUrl) {
-        window.location.href = order.paymentUrl;
+        redirectToGateway(order.paymentUrl);
         return;
       }
     } catch {

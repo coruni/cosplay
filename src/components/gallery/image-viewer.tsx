@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useReducedMotion } from '@/lib/use-reduced-motion';
 import { XIcon, ChevronLeftIcon, ChevronRightIcon, DownloadIcon } from 'lucide-react';
@@ -25,6 +25,23 @@ export function ImageViewer({
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [imageLoaded, setImageLoaded] = useState(false);
   const shouldReduceMotion = useReducedMotion();
+  // Touch swipe tracking (mobile).
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const swiped = useRef(false);
+
+  // Navigate between images (wraps around). Stable: depends only on images.length.
+  const navigate = useCallback(
+    (direction: number) => {
+      setImageLoaded(false);
+      setCurrentIndex((prev) => {
+        const next = prev + direction;
+        if (next < 0) return images.length - 1;
+        if (next >= images.length) return 0;
+        return next;
+      });
+    },
+    [images.length]
+  );
 
   // Reset index when opening
   useEffect(() => {
@@ -34,7 +51,8 @@ export function ImageViewer({
     }
   }, [open, initialIndex]);
 
-  // Keyboard navigation
+  // Keyboard navigation — document-level so it works without focus on the
+  // dialog; also lock background scroll while open.
   useEffect(() => {
     if (!open) return;
 
@@ -53,25 +71,48 @@ export function ImageViewer({
     };
 
     document.addEventListener('keydown', handleKeyDown);
+    const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
-      document.body.style.overflow = '';
+      document.body.style.overflow = prevOverflow;
     };
-  }, [open, currentIndex]);
+  }, [open, onClose]);
 
-  const navigate = useCallback(
-    (direction: number) => {
-      setImageLoaded(false);
-      setCurrentIndex((prev) => {
-        const next = prev + direction;
-        if (next < 0) return images.length - 1;
-        if (next >= images.length) return 0;
-        return next;
-      });
+  // Touch swipe handlers (mobile left/right).
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    const t = e.touches[0];
+    touchStart.current = { x: t.clientX, y: t.clientY };
+    swiped.current = false;
+  }, []);
+
+  const handleTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      const start = touchStart.current;
+      touchStart.current = null;
+      if (!start) return;
+      const t = e.changedTouches[0];
+      const dx = t.clientX - start.x;
+      const dy = t.clientY - start.y;
+      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
+        swiped.current = true;
+        navigate(dx < 0 ? 1 : -1);
+      }
     },
-    [images.length]
+    [navigate]
+  );
+
+  // Backdrop click closes, but a swipe's trailing click must not.
+  const handleBackdropClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (swiped.current) {
+        swiped.current = false;
+        return;
+      }
+      onClose();
+    },
+    [onClose]
   );
 
   if (!open) return null;
@@ -86,7 +127,9 @@ export function ImageViewer({
         exit={shouldReduceMotion ? undefined : { opacity: 0 }}
         transition={{ duration: 0.2 }}
         className="fixed inset-0 z-50 flex items-center justify-center bg-[#1c1c28]/95 backdrop-blur-xl"
-        onClick={onClose}
+        onClick={handleBackdropClick}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
       >
         {/* Close button */}
         <Button
@@ -127,6 +170,7 @@ export function ImageViewer({
         {/* Image */}
         <div
           className="relative max-w-[90vw] max-h-[85vh] flex items-center justify-center"
+          style={{ touchAction: 'none' }}
           onClick={(e) => e.stopPropagation()}
         >
           {!imageLoaded && (
