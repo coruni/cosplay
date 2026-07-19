@@ -1,5 +1,5 @@
 import { getTranslations, setRequestLocale } from 'next-intl/server';
-import { getGalleryBySlug, getRelatedGalleries } from '@/lib/data';
+import { getGalleryBySlug, getRelatedGalleries, recordView } from '@/lib/data';
 import { GalleryDetailClient } from '@/components/gallery/gallery-detail-client';
 import { GalleryGrid } from '@/components/gallery/gallery-grid';
 import { Badge } from '@/components/ui/badge';
@@ -98,6 +98,13 @@ export default async function GalleryDetailPage({ params }: Props) {
   if (!gallery) {
     notFound();
   }
+
+  // Fire-and-forget view counter increment. Don't await — must not block
+  // rendering. Failures (e.g. Redis down) are silently swallowed inside
+  // recordView → incrementViewCount. This page is dynamically rendered
+  // (uses headers() via getShowNsfwServer + getCurrentUser), so each
+  // pageview triggers exactly one increment.
+  void recordView(slug);
 
   const isNsfw = gallery.rating === 'nsfw';
   const showNsfw = await getShowNsfwServer();

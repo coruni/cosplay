@@ -13,7 +13,7 @@ export default async function PaymentSuccessPage({
   searchParams,
 }: {
   params: Promise<{ locale: string }>;
-  searchParams: Promise<{ orderId?: string; galleryId?: string; type?: string }>;
+  searchParams: Promise<{ orderId?: string; gallerySlug?: string; type?: string }>;
 }) {
   const { locale } = await params;
   if (!routing.locales.includes(locale as (typeof routing.locales)[number])) {
@@ -84,8 +84,8 @@ export default async function PaymentSuccessPage({
 
         {/* Actions */}
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          {sp.galleryId && (
-            <Link href={`/${locale}/gallery/${sp.galleryId}`}>
+          {sp.gallerySlug && (
+            <Link href={`/${locale}/gallery/${sp.gallerySlug}`}>
               <Button
                 className="bg-[#ff2d78] hover:bg-[#ff2d78]/90 text-white"
                 style={{

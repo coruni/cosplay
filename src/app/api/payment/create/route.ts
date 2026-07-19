@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createPaymentOrder } from '@/lib/payment';
-import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/user-auth';
 
 export async function POST(request: NextRequest) {
@@ -15,25 +14,20 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { galleryId, galleryName, amount, locale } = body;
+    // body.galleryId is actually the gallery SLUG (frontend naming). Pass it
+    // through to createPaymentOrder, which now resolves slug → DB id itself.
+    const { galleryId: gallerySlug, galleryName, amount, locale } = body;
 
-    if (!galleryId || !galleryName || !amount) {
+    if (!gallerySlug || !galleryName || !amount) {
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
       );
     }
 
-    // galleryId from frontend is the slug — resolve to DB ID
-    let dbId = galleryId;
-    const gallery = await prisma.gallery.findUnique({ where: { slug: galleryId } });
-    if (gallery) {
-      dbId = gallery.id;
-    }
-
     const baseUrl = `${request.nextUrl.protocol}//${request.headers.get('host')}`;
     const order = await createPaymentOrder(
-      dbId,
+      gallerySlug,
       galleryName,
       amount,
       baseUrl,

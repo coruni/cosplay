@@ -85,6 +85,7 @@ export function GalleryCard({ gallery, index = 0, priority = false }: GalleryCar
       }
       className={cn(
         'group relative cursor-pointer rounded-xl overflow-hidden',
+        'flex flex-col',
         'bg-[#262633]/70 backdrop-blur-sm',
         'border border-white/[0.06]',
         'transition-all duration-300',
@@ -165,7 +166,7 @@ export function GalleryCard({ gallery, index = 0, priority = false }: GalleryCar
       </div>
 
       {/* Card body */}
-      <div className="p-4 space-y-2.5">
+      <div className="flex-1 flex flex-col p-4 gap-2.5">
         {/* Title */}
         <h3 className="text-base font-semibold leading-snug text-foreground line-clamp-2 group-hover:text-[#ff2d78] transition-colors duration-200">
           {title}
@@ -188,8 +189,9 @@ export function GalleryCard({ gallery, index = 0, priority = false }: GalleryCar
           </span>
         </div>
 
-        {/* Footer: view count + image count */}
-        <div className="flex items-center justify-between pt-1">
+        {/* Footer: view count + image count — mt-auto pushes it to card bottom
+            so all cards in a row align regardless of title length. */}
+        <div className="flex items-center justify-between pt-1 mt-auto">
           <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground/70">
             <EyeIcon className="size-3.5" aria-hidden="true" />
             {t('views', { count: gallery.viewCount })}

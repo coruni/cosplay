@@ -1,5 +1,6 @@
 import { routing } from '@/i18n/routing';
-import { getAllCategories, getGalleries } from '@/lib/data';
+import { getAllCategories } from '@/lib/data';
+import { prisma } from '@/lib/db';
 import { getSiteUrl } from '@/lib/site';
 import type { MetadataRoute } from 'next';
 
@@ -31,7 +32,15 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Gallery detail pages — SFW ONLY.
   // NSFW galleries are intentionally excluded so they never reach crawlers;
   // their own <meta name="robots" content="noindex"> is the second guard.
-  const { items: galleries } = await getGalleries({ pageSize: 1000, rating: 'sfw' });
+  //
+  // Pull all SFW galleries in one shot (select only slug + createdAt, which
+  // is cheap). The previous `getGalleries({ pageSize: 1000 })` call silently
+  // dropped anything beyond the 1000-row page cap, leaving newer SFW galleries
+  // out of the sitemap forever.
+  const galleries = await prisma.gallery.findMany({
+    where: { rating: 'sfw' },
+    select: { slug: true, createdAt: true },
+  });
   const galleryPages = galleries.flatMap((gallery) =>
     locales.map((locale) => ({
       url: `${baseUrl}/${locale}/gallery/${gallery.slug}`,

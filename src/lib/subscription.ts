@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import { prisma } from './db';
 
 /** Quota reset cycle length in ms (default 30 days, configurable). */
@@ -104,47 +105,59 @@ export interface ConsumeResult {
  * - Returns { ok:false, reason:'exhausted' } if quota used up this cycle.
  * - Otherwise increments quotaUsed and returns remaining count.
  * Auto-resets quota when a new cycle boundary is crossed.
+ *
+ * This is the transaction-client version: it runs inside a caller-supplied
+ * `tx` and does NOT create its own `$transaction`. Use this when you need
+ * to combine quota consumption with other writes in a single atomic unit
+ * (e.g. the unlock route records a payment order + bumps downloadCount).
  */
-export async function consumeQuota(userId: string): Promise<ConsumeResult> {
-  const result = await prisma.$transaction(async (tx) => {
-    const user = await tx.user.findUnique({ where: { id: userId } });
-    if (!user) return { ok: false, remaining: 0, reason: 'no_user' as const };
+export async function consumeQuotaTx(
+  tx: Prisma.TransactionClient,
+  userId: string
+): Promise<ConsumeResult> {
+  const user = await tx.user.findUnique({ where: { id: userId } });
+  if (!user) return { ok: false, remaining: 0, reason: 'no_user' as const };
 
-    const now = Date.now();
-    const active =
-      user.isSubscribed &&
-      !!user.subscriptionEndAt &&
-      user.subscriptionEndAt.getTime() > now;
-    if (!active) {
-      return { ok: false, remaining: 0, reason: 'inactive' as const };
-    }
+  const now = Date.now();
+  const active =
+    user.isSubscribed &&
+    !!user.subscriptionEndAt &&
+    user.subscriptionEndAt.getTime() > now;
+  if (!active) {
+    return { ok: false, remaining: 0, reason: 'inactive' as const };
+  }
 
-    const currentCycle = cycleIndex(user.subscriptionStartAt, now);
-    let quotaUsed = user.quotaUsed;
-    const quotaTotal = user.quotaTotal || DEFAULT_QUOTA;
+  const currentCycle = cycleIndex(user.subscriptionStartAt, now);
+  let quotaUsed = user.quotaUsed;
+  const quotaTotal = user.quotaTotal || DEFAULT_QUOTA;
 
-    // Reset at cycle boundary
-    if (currentCycle > user.quotaCycle) {
-      quotaUsed = 0;
-      await tx.user.update({
-        where: { id: userId },
-        data: { quotaUsed: 0, quotaCycle: currentCycle },
-      });
-    }
-
-    if (quotaUsed >= quotaTotal) {
-      return { ok: false, remaining: 0, reason: 'exhausted' as const };
-    }
-
+  // Reset at cycle boundary
+  if (currentCycle > user.quotaCycle) {
+    quotaUsed = 0;
     await tx.user.update({
       where: { id: userId },
-      data: { quotaUsed: { increment: 1 } },
+      data: { quotaUsed: 0, quotaCycle: currentCycle },
     });
+  }
 
-    return { ok: true, remaining: quotaTotal - quotaUsed - 1 };
+  if (quotaUsed >= quotaTotal) {
+    return { ok: false, remaining: 0, reason: 'exhausted' as const };
+  }
+
+  await tx.user.update({
+    where: { id: userId },
+    data: { quotaUsed: { increment: 1 } },
   });
 
-  return result;
+  return { ok: true, remaining: quotaTotal - quotaUsed - 1 };
+}
+
+/**
+ * Standalone wrapper around `consumeQuotaTx` for callers that don't need
+ * to share a transaction. Equivalent to the pre-refactor `consumeQuota`.
+ */
+export async function consumeQuota(userId: string): Promise<ConsumeResult> {
+  return prisma.$transaction((tx) => consumeQuotaTx(tx, userId));
 }
 
 /**

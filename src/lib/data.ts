@@ -147,18 +147,17 @@ export async function getRelatedGalleries(
   limit = 4,
   showNsfw = false
 ): Promise<Gallery[]> {
+  // Related = same category overlap, filtered by the appropriate rating tier.
+  // Previously this had an OR [{categories hasSome}, {rating: gallery.rating}]
+  // that was then partially overwritten by `if (!showNsfw) where.rating='sfw'`,
+  // producing confused intent. Now the rating filter is explicit and standalone.
   const where: Prisma.GalleryWhereInput = {
     id: { not: gallery.id },
-    OR: [
-      { categories: { hasSome: gallery.categories } },
-      { rating: gallery.rating },
-    ],
+    categories: { hasSome: gallery.categories },
+    // On SFW detail pages: only SFW related. On NSFW detail pages (which
+    // require showNsfw=true to even reach): allow same-rating related.
+    rating: showNsfw ? gallery.rating : 'sfw',
   };
-
-  // DB-layer NSFW filter: exclude NSFW rows unless the user opted in.
-  if (!showNsfw) {
-    where.rating = 'sfw';
-  }
 
   const rows = await prisma.gallery.findMany({
     where,

@@ -23,6 +23,10 @@ const s3RemotePatterns = (() => {
 })();
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins:['774f832a.r21.cpolar.top'],
+  // 产出自包含部署包：.next/standalone 含 node server + 仅必要的 node_modules，
+  // 配合 .next/static 和 public/ 拷贝即可独立运行（适合 Docker / 最小镜像）。
+  output: "standalone",
   ...(s3RemotePatterns.length > 0
     ? { images: { remotePatterns: s3RemotePatterns } }
     : {}),

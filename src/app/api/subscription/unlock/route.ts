@@ -1,16 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { getCurrentUser } from '@/lib/user-auth';
-import { consumeQuota } from '@/lib/subscription';
+import { consumeQuotaTx } from '@/lib/subscription';
 
 /**
  * Member download & permanent unlock of a gallery, consuming 1 unit of monthly quota.
  *
- * - Requires an active subscription (consumeQuota returns 'inactive' otherwise).
+ * - Requires an active subscription (consumeQuotaTx returns 'inactive' otherwise).
  * - Records a PAID GALLERY order so the gallery becomes permanently owned
  *   (hasPurchasedGallery / "once unlocked, always available"), surviving quota
  *   resets and membership expiry.
  * - Increments the gallery downloadCount as a proxy for the gated download.
+ *
+ * All three writes run inside a single `prisma.$transaction` so that if any
+ * step fails (e.g. paymentOrder.create throws), the quota increment is rolled
+ * back too — no single-sided quota deduction can persist.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -36,7 +40,33 @@ export async function POST(request: NextRequest) {
     const gallery = await prisma.gallery.findUnique({ where: { slug: galleryId } });
     if (gallery) dbId = gallery.id;
 
-    const result = await consumeQuota(user.id);
+    const result = await prisma.$transaction(async (tx) => {
+      const r = await consumeQuotaTx(tx, user.id);
+      if (!r.ok) return r;
+
+      // Permanently own the gallery via a paid GALLERY order (not 'subscription',
+      // which the payment notify treats as a membership activation).
+      await tx.paymentOrder.create({
+        data: {
+          orderId: `ULK${Date.now()}${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+          galleryId: dbId,
+          amount: 0,
+          status: 'paid',
+          type: 'gallery',
+          userId: user.id,
+          paidAt: new Date(),
+        },
+      });
+
+      // Proxy metric for the (gated) download that follows.
+      await tx.gallery.update({
+        where: { id: dbId },
+        data: { downloadCount: { increment: 1 } },
+      });
+
+      return r;
+    });
+
     if (!result.ok) {
       const status = result.reason === 'exhausted' ? 402 : 403;
       return NextResponse.json(
@@ -44,26 +74,6 @@ export async function POST(request: NextRequest) {
         { status }
       );
     }
-
-    // Permanently own the gallery via a paid GALLERY order (not 'subscription',
-    // which the payment notify treats as a membership activation).
-    await prisma.paymentOrder.create({
-      data: {
-        orderId: `ULK${Date.now()}${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
-        galleryId: dbId,
-        amount: 0,
-        status: 'paid',
-        type: 'gallery',
-        userId: user.id,
-        paidAt: new Date(),
-      },
-    });
-
-    // Proxy metric for the (gated) download that follows.
-    await prisma.gallery.update({
-      where: { id: dbId },
-      data: { downloadCount: { increment: 1 } },
-    });
 
     return NextResponse.json({ ok: true, remaining: result.remaining });
   } catch (error) {

@@ -50,6 +50,14 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+
+      // Mark the order as paid so admin reports / revenue aggregates reflect
+      // the mock activation. Without this the order stays 'pending' forever
+      // even though the membership is active.
+      await prisma.paymentOrder.update({
+        where: { orderId },
+        data: { status: 'paid', paidAt: new Date() },
+      });
     }
 
     await activateSubscription(user.id);

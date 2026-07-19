@@ -57,6 +57,7 @@ export async function GET() {
       createdAt: g.createdAt.toISOString(),
       viewCount: g.viewCount,
       downloadCount: g.downloadCount,
+      downloadUrl: g.downloadUrl ?? undefined,
     });
   }
 

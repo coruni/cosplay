@@ -43,7 +43,7 @@ function generateSign(params: Record<string, string>): string {
 }
 
 export async function createPaymentOrder(
-  galleryId: string | null,
+  gallerySlug: string | null,
   galleryName: string,
   amount: number,
   baseUrl: string,
@@ -57,13 +57,27 @@ export async function createPaymentOrder(
   const localePrefix = `/${locale}`;
   const orderId = `COS${Date.now()}${Math.random().toString(36).slice(2, 8).toUpperCase()}`;
 
-  const galleryPart = galleryId ? `&galleryId=${galleryId}` : '';
+  // Resolve slug → DB id for storage. The URL query param carries the slug
+  // directly so the success page can build a /gallery/<slug> link without
+  // needing another DB lookup. (Previously the resolved DB id was put in the
+  // URL under the name `galleryId`, which the success page then used as a
+  // slug — producing a 404 on the "view content" button.)
+  let dbId: string | null = null;
+  if (gallerySlug) {
+    const g = await prisma.gallery.findUnique({
+      where: { slug: gallerySlug },
+      select: { id: true },
+    });
+    dbId = g?.id ?? null;
+  }
+
+  const slugPart = gallerySlug ? `&gallerySlug=${encodeURIComponent(gallerySlug)}` : '';
 
   const params: Record<string, string> = {
     pid: config.pid,
     out_trade_no: orderId,
     notify_url: `${baseUrl}${localePrefix}/payment/notify`,
-    return_url: `${baseUrl}${localePrefix}/payment/success?orderId=${orderId}${galleryPart}`,
+    return_url: `${baseUrl}${localePrefix}/payment/success?orderId=${orderId}${slugPart}`,
     name: galleryName,
     money: amount.toFixed(2),
     sitename: 'CosHub',
@@ -85,22 +99,22 @@ export async function createPaymentOrder(
     await prisma.paymentOrder.create({
       data: {
         orderId,
-        galleryId,
+        galleryId: dbId,
         amount,
         status: 'pending',
         type,
-        paymentUrl: `${baseUrl}${localePrefix}/payment/success?orderId=${orderId}${galleryPart}&type=${type}&mock=true`,
+        paymentUrl: `${baseUrl}${localePrefix}/payment/success?orderId=${orderId}${slugPart}&type=${type}&mock=true`,
         userId,
       },
     });
 
     return {
       orderId,
-      galleryId,
+      galleryId: dbId,
       amount,
       status: 'pending',
       type,
-      paymentUrl: `${baseUrl}${localePrefix}/payment/success?orderId=${orderId}${galleryPart}&type=${type}&mock=true`,
+      paymentUrl: `${baseUrl}${localePrefix}/payment/success?orderId=${orderId}${slugPart}&type=${type}&mock=true`,
       createdAt: new Date().toISOString(),
     };
   }
@@ -117,7 +131,7 @@ export async function createPaymentOrder(
   await prisma.paymentOrder.create({
     data: {
       orderId,
-      galleryId,
+      galleryId: dbId,
       amount,
       status: 'pending',
       type,
@@ -137,7 +151,7 @@ export async function createPaymentOrder(
 
   return {
     orderId,
-    galleryId,
+    galleryId: dbId,
     amount,
     status: 'pending',
     paymentUrl: payUrl,

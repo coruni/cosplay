@@ -29,5 +29,14 @@ export async function getSiteUrl(): Promise<string> {
     // headers() is only available inside a request context.
   }
 
+  // We're either in dev or in a static-build context with no request and no
+  // NEXT_PUBLIC_SITE_URL. In production this means sitemap/robots will emit
+  // localhost URLs — warn loudly so the operator notices and fixes the env.
+  if (process.env.NODE_ENV === 'production') {
+    console.error(
+      '[site] NEXT_PUBLIC_SITE_URL not set in production; falling back to http://localhost:3000. ' +
+        'SEO output (sitemap.xml, robots.txt, metadataBase) will be incorrect.'
+    );
+  }
   return 'http://localhost:3000';
 }

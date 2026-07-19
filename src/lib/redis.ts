@@ -59,12 +59,25 @@ export async function cacheSet(key: string, value: unknown, ttl?: number): Promi
 
 export async function cacheDelete(pattern: string): Promise<void> {
   try {
-    const keys = await redis.keys(pattern);
-    if (keys.length > 0) {
-      await redis.del(...keys);
-    }
+    // Use SCAN (cursor-based, non-blocking) instead of KEYS (O(N) blocking).
+    // KEYS would freeze the Redis main thread on large keyspaces; SCAN walks
+    // in batches of COUNT and yields between iterations.
+    let cursor = '0';
+    do {
+      const [next, keys] = await redis.scan(
+        cursor,
+        'MATCH',
+        pattern,
+        'COUNT',
+        200
+      );
+      cursor = next;
+      if (keys.length > 0) {
+        await redis.del(...keys);
+      }
+    } while (cursor !== '0');
   } catch {
-    // Fail silently
+    // Fail silently — cache is optional
   }
 }
 
