@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import { GalleryGrid } from '@/components/gallery/gallery-grid';
 import Link from 'next/link';
 import { cn } from '@/lib/utils';
+import { getCategoryIcon } from '@/lib/categories';
 
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
@@ -100,17 +101,7 @@ export default async function CategoriesPage({
                     'transition-all duration-300'
                   )}
                 >
-                  <span className="text-2xl">
-                    {cat === 'game' ? '🎮' :
-                     cat === 'anime' ? '🎬' :
-                     cat === 'manga' ? '📚' :
-                     cat === 'movie' ? '🎥' :
-                     cat === 'original' ? '✨' :
-                     cat === 'swimsuit' ? '🏖️' :
-                     cat === 'lingerie' ? '💋' :
-                     cat === 'school' ? '🎒' :
-                     cat === 'fantasy' ? '🧙' : '📷'}
-                  </span>
+                  <span className="text-2xl">{getCategoryIcon(cat)}</span>
                 </div>
                 <span className="text-sm font-medium text-foreground/80 group-hover:text-foreground transition-colors">
                   {label}
