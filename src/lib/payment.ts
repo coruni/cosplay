@@ -7,12 +7,16 @@ interface YipayConfig {
   pid: string;
   key: string;
   apiUrl: string;
+  /** Default channel for the gateway's method-selection page. Empty = let gateway choose. */
+  channel: string;
 }
 
 const config: YipayConfig = {
   pid: process.env.YIPAY_PID || '1000',
   key: process.env.YIPAY_KEY || 'demo_key_placeholder',
-  apiUrl: process.env.YIPAY_API_URL || 'https://pay.example.com/api',
+  // Base URL of the gateway, e.g. https://pay.example.com (no trailing /submit.php)
+  apiUrl: process.env.YIPAY_API_URL || 'https://pay.example.com',
+  channel: process.env.YIPAY_CHANNEL || '',
 };
 
 function md5(str: string): string {
@@ -48,7 +52,6 @@ export async function createPaymentOrder(
 
   const params: Record<string, string> = {
     pid: config.pid,
-    type: 'alipay',
     out_trade_no: orderId,
     notify_url: `${baseUrl}${localePrefix}/payment/notify`,
     return_url: `${baseUrl}${localePrefix}/payment/success?orderId=${orderId}${galleryPart}`,
@@ -56,6 +59,11 @@ export async function createPaymentOrder(
     money: amount.toFixed(2),
     sitename: 'CosHub',
   };
+
+  // Optional payment channel — omit to let the gateway show the method-selection page.
+  if (config.channel) {
+    params.type = config.channel;
+  }
 
   params.sign = generateSign(params);
   params.sign_type = 'MD5';
@@ -100,39 +108,24 @@ export async function createPaymentOrder(
     },
   });
 
-  // 真实请求易支付 API
-  try {
-    const response = await fetch(`${config.apiUrl}/submit.php`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams(params).toString(),
-    });
+  // 真实易支付流程：构造带签名的 submit.php 跳转链接，浏览器直接前往网关支付页。
+  // 易支付的 submit.php 是浏览器导航端点（返回自动提交表单），不能走 POST fetch。
+  const payUrl = `${config.apiUrl.replace(/\/+$/, '')}/submit.php?${new URLSearchParams(params).toString()}`;
 
-    const text = await response.text();
-    const payUrl = text.includes('http') ? text.trim() : `${config.apiUrl}/pay/${orderId}`;
+  // 记录支付链接，供前端 window.location.href 跳转
+  await prisma.paymentOrder.update({
+    where: { orderId },
+    data: { paymentUrl: payUrl },
+  });
 
-    // Update with payment URL
-    await prisma.paymentOrder.update({
-      where: { orderId },
-      data: { paymentUrl: payUrl },
-    });
-
-    return {
-      orderId,
-      galleryId,
-      amount,
-      status: 'pending',
-      paymentUrl: payUrl,
-      createdAt: new Date().toISOString(),
-    };
-  } catch (error) {
-    console.error('[Payment Error]', error);
-    await prisma.paymentOrder.update({
-      where: { orderId },
-      data: { status: 'failed' },
-    });
-    throw new Error('Failed to create payment order');
-  }
+  return {
+    orderId,
+    galleryId,
+    amount,
+    status: 'pending',
+    paymentUrl: payUrl,
+    createdAt: new Date().toISOString(),
+  };
 }
 
 export function verifyPaymentNotify(params: Record<string, string>): boolean {
@@ -140,7 +133,16 @@ export function verifyPaymentNotify(params: Record<string, string>): boolean {
   if (!receivedSign) return false;
 
   const calculatedSign = generateSign(params);
-  return receivedSign === calculatedSign;
+  if (receivedSign !== calculatedSign) return false;
+
+  // 易支付在交易成功时回传 trade_status=TRADE_SUCCESS/TRADE_FINISHED。
+  // 若网关明确给出非成功状态，则视为无效通知（忽略空值，保持向后兼容）。
+  const status = params.trade_status;
+  if (status && status !== 'TRADE_SUCCESS' && status !== 'TRADE_FINISHED') {
+    return false;
+  }
+
+  return true;
 }
 
 export async function confirmPayment(orderId: string): Promise<boolean> {
