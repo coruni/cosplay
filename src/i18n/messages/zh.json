@@ -55,7 +55,10 @@
     "downloadExternalLabel": "前往网盘下载",
     "downloadExternal": "正在打开外部下载链接…",
     "relatedGalleries": "相关图包",
-    "ageWarning": "本图包包含成人内容，请确认您已年满 18 周岁"
+    "ageWarning": "本图包包含成人内容，请确认您已年满 18 周岁",
+    "membersOnly": "会员专享",
+    "membersOnlyDesc": "本图包为会员专属内容，订阅会员后可免费查看与下载。",
+    "becomeMember": "成为会员解锁"
   },
   "payment": {
     "title": "解锁图包",

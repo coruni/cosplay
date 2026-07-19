@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { useReducedMotion } from '@/lib/use-reduced-motion';
 import { useTranslations, useLocale } from 'next-intl';
 import Image from 'next/image';
-import { EyeIcon, LockIcon, StarIcon, UserIcon } from 'lucide-react';
+import { EyeIcon, LockIcon, SparklesIcon, StarIcon, UserIcon } from 'lucide-react';
 import { getRatingLabel, getRatingColor } from '@/lib/content-filter';
 import { cn } from '@/lib/utils';
 import type { Gallery } from '@/types';
@@ -36,7 +36,10 @@ export function GalleryCard({ gallery, index = 0, priority = false }: GalleryCar
   const shouldReduceMotion = useReducedMotion();
 
   const title = gallery.title[locale as keyof typeof gallery.title] ?? gallery.title.en;
-  const isFree = !gallery.isPremium || gallery.price === 0;
+  const isGated = gallery.isPremium;
+  const isPaid = isGated && gallery.price > 0;
+  const isMembersOnly = isGated && gallery.price === 0;
+  const isFree = !isGated;
   const ratingLabel = getRatingLabel(gallery.rating, locale);
   const ratingColorClasses = getRatingColor(gallery.rating);
 
@@ -140,16 +143,21 @@ export function GalleryCard({ gallery, index = 0, priority = false }: GalleryCar
             'border backdrop-blur-md',
             isFree
               ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 shadow-[0_0_10px_rgba(34,197,94,0.2)]'
+              : isMembersOnly
+              ? 'bg-[#00d4ff]/20 text-[#00d4ff] border-[#00d4ff]/30 shadow-[0_0_10px_rgba(0,212,255,0.2)]'
               : 'bg-[#ff2d78]/20 text-[#ff2d78] border-[#ff2d78]/30 shadow-[0_0_10px_rgba(255,45,120,0.2)]'
           )}
         >
           {isFree ? (
             t('free')
+          ) : isMembersOnly ? (
+            <>
+              <SparklesIcon className="size-3" aria-hidden="true" />
+              会员专享
+            </>
           ) : (
             <>
-              {gallery.isPremium && (
-                <LockIcon className="size-2.5" aria-hidden="true" />
-              )}
+              <LockIcon className="size-2.5" aria-hidden="true" />
               ¥{gallery.price}
             </>
           )}

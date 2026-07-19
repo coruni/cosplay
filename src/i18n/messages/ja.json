@@ -55,7 +55,10 @@
     "downloadExternalLabel": "外部リンクへ",
     "downloadExternal": "外部リンクを開いています…",
     "relatedGalleries": "関連ギャラリー",
-    "ageWarning": "このギャラリーには成人向けコンテンツが含まれています。18歳以上であることを確認してください。"
+    "ageWarning": "このギャラリーには成人向けコンテンツが含まれています。18歳以上であることを確認してください。",
+    "membersOnly": "会員限定",
+    "membersOnlyDesc": "このギャラリーは会員専用です。会員登録で無料で閲覧・ダウンロードできます。",
+    "becomeMember": "会員になる"
   },
   "payment": {
     "title": "ギャラリーをアンロック",

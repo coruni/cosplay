@@ -55,7 +55,10 @@
     "downloadExternalLabel": "Open External Link",
     "downloadExternal": "Opening external download…",
     "relatedGalleries": "Related Galleries",
-    "ageWarning": "This gallery contains adult content. Please confirm you are 18 or older."
+    "ageWarning": "This gallery contains adult content. Please confirm you are 18 or older.",
+    "membersOnly": "Members Only",
+    "membersOnlyDesc": "This gallery is exclusive to subscribers. Subscribe to view and download for free.",
+    "becomeMember": "Become a Member to Unlock"
   },
   "payment": {
     "title": "Unlock Gallery",

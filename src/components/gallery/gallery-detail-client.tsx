@@ -68,10 +68,14 @@ export function GalleryDetailClient({
   const [showAgeGate, setShowAgeGate] = useState(false);
 
   const isNsfw = gallery.rating === 'nsfw';
-  const isPremium = gallery.isPremium && gallery.price > 0;
-  // Members view all premium galleries for free; non-members must own (purchase).
+  // `isGated` = the gallery is restricted to subscribers (members-only) or buyers.
+  //   - isPaid (price > 0): non-members may purchase it individually; members view free.
+  //   - !isPaid (price == 0): members-only — non-members cannot buy, they must subscribe.
+  const isGated = gallery.isPremium;
+  const isPaid = isGated && gallery.price > 0;
+  // Members view all gated galleries for free; non-members must own (purchase) or subscribe.
   // Downloading as a member consumes 1 quota and permanently unlocks the gallery.
-  const canViewAll = !isPremium || isOwned || localUnlock || membershipActive;
+  const canViewAll = !isGated || isOwned || localUnlock || membershipActive;
   const previewCount = 3;
   const allImages = gallery.images;
   const visibleImages = canViewAll ? allImages : allImages.slice(0, previewCount);
@@ -270,8 +274,9 @@ export function GalleryDetailClient({
     <>
       {/* ========== Image Grid ========== */}
       <div className="mt-8">
-        {/* ===== Unlock / Download banner (top) ===== */}
-        {isPremium && !isOwned && !membershipActive && (
+        {/* ===== Unlock / Subscribe banner (top) ===== */}
+        {/* Paid gallery (price > 0): non-members can buy it individually. */}
+        {isGated && !isOwned && !membershipActive && isPaid && (
           <motion.div
             initial={
               shouldReduceMotion ? undefined : { opacity: 0, y: 12 }
@@ -329,7 +334,47 @@ export function GalleryDetailClient({
           </motion.div>
         )}
 
-        {isPremium && canViewAll && (
+        {/* Members-only (price == 0): non-members must subscribe — no individual purchase. */}
+        {isGated && !isOwned && !membershipActive && !isPaid && (
+          <motion.div
+            initial={
+              shouldReduceMotion ? undefined : { opacity: 0, y: 12 }
+            }
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, delay: 0.3 }}
+            className="mb-8 p-6 rounded-2xl border border-[#00d4ff]/20 bg-[#00d4ff]/5 text-center"
+          >
+            <div className="inline-flex items-center justify-center size-14 rounded-full bg-[#00d4ff]/15 border border-[#00d4ff]/30 mb-4">
+              <SparklesIcon className="size-6 text-[#00d4ff]" aria-hidden="true" />
+            </div>
+            <h3 className="text-lg font-semibold text-foreground mb-2">
+              {t('membersOnly')}
+            </h3>
+            <p className="text-sm text-muted-foreground mb-5 max-w-md mx-auto">
+              {t('membersOnlyDesc')}
+            </p>
+            <button
+              type="button"
+              onClick={() => router.push(`/${locale}/account`)}
+              className={cn(
+                'inline-flex items-center gap-2 px-8 py-3.5 rounded-xl',
+                'text-base font-semibold text-white',
+                'bg-[#00d4ff] hover:bg-[#00d4ff]/90',
+                'shadow-[0_0_30px_rgba(0,212,255,0.4)]',
+                'hover:shadow-[0_0_40px_rgba(0,212,255,0.5)]',
+                'transition-all duration-300',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00d4ff]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0f]',
+                'active:scale-[0.98]'
+              )}
+              style={{ minHeight: 52 }}
+            >
+              <SparklesIcon className="size-5" aria-hidden="true" />
+              {t('becomeMember')}
+            </button>
+          </motion.div>
+        )}
+
+        {isGated && canViewAll && (
           <motion.div
             initial={
               shouldReduceMotion ? undefined : { opacity: 0, scale: 0.95 }

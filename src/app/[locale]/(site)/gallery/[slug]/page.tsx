@@ -184,11 +184,15 @@ export default async function GalleryDetailPage({ params }: Props) {
                   'inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold border',
                   gallery.isPremium && gallery.price > 0
                     ? 'bg-[#ff2d78]/15 text-[#ff2d78] border-[#ff2d78]/30'
+                    : gallery.isPremium
+                    ? 'bg-[#00d4ff]/15 text-[#00d4ff] border-[#00d4ff]/30'
                     : 'bg-emerald-500/15 text-emerald-400 border-emerald-500/30'
                 )}
               >
                 {gallery.isPremium && gallery.price > 0
                   ? `¥${gallery.price}`
+                  : gallery.isPremium
+                  ? '会员专享'
                   : 'Free'}
               </span>
             </div>

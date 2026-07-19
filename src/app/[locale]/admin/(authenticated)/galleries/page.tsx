@@ -109,9 +109,6 @@ export default function AdminGalleriesPage() {
     } else if (!/^[a-z0-9-]+$/.test(f.slug)) {
       e.slug = 'Slug 只能包含小写字母、数字和连字符';
     }
-    if (f.isPremium && (f.price ?? 0) <= 0) {
-      e.price = '付费图包价格需大于 0';
-    }
     if (!f.cover) e.cover = '请上传封面图';
     if (!f.images || f.images.length === 0) e.images = '请至少上传一张图包图片';
     return e;
@@ -303,9 +300,15 @@ export default function AdminGalleriesPage() {
                       </Badge>
                     </td>
                     <td className="px-4 py-3 hidden lg:table-cell">
-                      <span className={cn(g.isPremium ? 'text-[#ff2d78]' : 'text-emerald-400', 'font-medium')}>
-                        {g.isPremium ? `¥${g.price}` : '免费'}
-                      </span>
+                      {g.isPremium && (g.price ?? 0) > 0 ? (
+                        <span className="text-[#ff2d78] font-medium">¥{g.price}</span>
+                      ) : g.isPremium ? (
+                        <span className="text-[#ff2d78] font-medium text-xs px-2 py-0.5 rounded-full bg-[#ff2d78]/10 border border-[#ff2d78]/20">
+                          会员专享
+                        </span>
+                      ) : (
+                        <span className="text-emerald-400 font-medium">免费</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
@@ -554,17 +557,22 @@ export default function AdminGalleriesPage() {
                   <Input
                     type="number"
                     step="0.01"
+                    min="0"
                     value={form.price || 0}
                     onChange={(e) => updateForm('price', parseFloat(e.target.value) || 0)}
-                    className={cn(
-                      'bg-white/[0.03] border-white/[0.08]',
-                      form.isPremium && (form.price ?? 0) <= 0 && 'border-amber-500/50'
-                    )}
+                    className="bg-white/[0.03] border-white/[0.08]"
                     style={{ minHeight: 40 }}
                   />
                   {errors.price && <p className="text-xs text-red-400">{errors.price}</p>}
-                  {form.isPremium && (form.price ?? 0) <= 0 && !errors.price && (
-                    <p className="text-xs text-amber-400/80">付费图包建议设置大于 0 的价格</p>
+                  {form.isPremium && (form.price ?? 0) > 0 && (
+                    <p className="text-xs text-muted-foreground/70">
+                      会员免费查看，非会员可按 ¥{(form.price ?? 0).toFixed(2)} 购买
+                    </p>
+                  )}
+                  {form.isPremium && (form.price ?? 0) <= 0 && (
+                    <p className="text-xs text-muted-foreground/70">
+                      会员专享：未设价格时仅订阅会员可访问（不可单独购买）
+                    </p>
                   )}
                 </div>
                 <div className="space-y-1.5 flex items-end pb-1">
@@ -575,7 +583,7 @@ export default function AdminGalleriesPage() {
                       onChange={(e) => updateForm('isPremium', e.target.checked)}
                       className="size-4 rounded accent-[#ff2d78]"
                     />
-                    <span className="text-xs text-muted-foreground">付费图包</span>
+                    <span className="text-xs text-muted-foreground">会员专享</span>
                   </label>
                 </div>
               </div>
