@@ -367,7 +367,7 @@ export default function AdminGalleriesPage() {
 
       {/* Edit/Create Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="bg-[#14141f] border-white/[0.08] max-w-5xl max-h-[92vh] overflow-hidden scrollbar-hide">
+        <DialogContent className="bg-[#14141f] border-white/[0.08] sm:max-w-6xl w-[calc(100vw-2rem)] max-h-[92vh] overflow-hidden scrollbar-hide">
           <DialogHeader className="shrink-0">
             <DialogTitle className="text-lg" style={{ fontFamily: 'Orbitron, sans-serif' }}>
               {editing ? '编辑图包' : '新增图包'}
@@ -416,7 +416,7 @@ export default function AdminGalleriesPage() {
               </div>
 
               {/* Descriptions */}
-              <div className="grid grid-cols-1 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {(['Zh', 'En', 'Ja'] as const).map((lang) => (
                   <div key={lang} className="space-y-1.5">
                     <Label className="text-xs text-muted-foreground">
