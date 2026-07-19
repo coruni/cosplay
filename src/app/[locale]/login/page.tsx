@@ -71,7 +71,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#0a0a0f] px-4 py-12">
+    <div className="min-h-screen flex items-center justify-center bg-[#1c1c28] px-4 py-12">
       <div
         className="absolute inset-0 pointer-events-none"
         style={{
@@ -89,7 +89,7 @@ export default function LoginPage() {
         <div
           className={cn(
             'rounded-2xl p-8',
-            'bg-[#14141f]/90 backdrop-blur-xl',
+            'bg-[#262633]/90 backdrop-blur-xl',
             'border border-white/[0.08]',
             'shadow-2xl shadow-black/50'
           )}

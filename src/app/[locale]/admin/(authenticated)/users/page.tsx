@@ -95,7 +95,7 @@ export default function AdminUsersPage() {
     <div className="space-y-6">
       {/* Stats bar */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="rounded-xl p-5 bg-[#14141f] border border-white/[0.06] flex items-center gap-4">
+        <div className="rounded-xl p-5 bg-[#262633] border border-white/[0.06] flex items-center gap-4">
           <div className="size-10 rounded-lg bg-[#00d4ff]/10 flex items-center justify-center">
             <UsersIcon className="size-5 text-[#00d4ff]" />
           </div>
@@ -104,7 +104,7 @@ export default function AdminUsersPage() {
             <p className="text-sm text-muted-foreground">注册用户</p>
           </div>
         </div>
-        <div className="rounded-xl p-5 bg-[#14141f] border border-white/[0.06] flex items-center gap-4">
+        <div className="rounded-xl p-5 bg-[#262633] border border-white/[0.06] flex items-center gap-4">
           <div className="size-10 rounded-lg bg-[#a855f7]/10 flex items-center justify-center">
             <CrownIcon className="size-5 text-[#a855f7]" />
           </div>
@@ -150,7 +150,7 @@ export default function AdminUsersPage() {
       </div>
 
       {/* Users table */}
-      <div className="rounded-xl bg-[#14141f] border border-white/[0.06] overflow-hidden">
+      <div className="rounded-xl bg-[#262633] border border-white/[0.06] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -181,7 +181,7 @@ export default function AdminUsersPage() {
                   <tr key={u.id} className="border-b border-white/[0.02] hover:bg-white/[0.02] transition-colors">
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="size-9 rounded-full overflow-hidden bg-[#0a0a0f] border border-white/[0.06] shrink-0">
+                        <div className="size-9 rounded-full overflow-hidden bg-[#1c1c28] border border-white/[0.06] shrink-0">
                           {u.avatar ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img

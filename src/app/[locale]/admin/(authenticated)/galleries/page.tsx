@@ -314,7 +314,7 @@ export default function AdminGalleriesPage() {
       </div>
 
       {/* Table */}
-      <div className="rounded-xl bg-[#14141f] border border-white/[0.06] overflow-hidden">
+      <div className="rounded-xl bg-[#262633] border border-white/[0.06] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -345,7 +345,7 @@ export default function AdminGalleriesPage() {
                 galleries.map((g) => (
                   <tr key={g.id} className="border-b border-white/[0.02] hover:bg-white/[0.02] transition-colors">
                     <td className="px-4 py-3">
-                      <div className="size-10 rounded-lg bg-[#0a0a0f] border border-white/[0.06] overflow-hidden">
+                      <div className="size-10 rounded-lg bg-[#1c1c28] border border-white/[0.06] overflow-hidden">
                         {g.cover ? (
                           // eslint-disable-next-line @next/next/no-img-element
                           <img
@@ -447,7 +447,7 @@ export default function AdminGalleriesPage() {
 
       {/* Edit/Create Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="bg-[#14141f] border-white/[0.08] sm:max-w-6xl w-[calc(100vw-2rem)] max-h-[92vh] overflow-hidden scrollbar-hide">
+        <DialogContent className="bg-[#262633] border-white/[0.08] sm:max-w-6xl w-[calc(100vw-2rem)] max-h-[92vh] overflow-hidden scrollbar-hide">
           <DialogHeader className="shrink-0">
             <DialogTitle className="text-lg" style={{ fontFamily: 'Orbitron, sans-serif' }}>
               {editing ? '编辑图包' : '新增图包'}
@@ -782,7 +782,7 @@ export default function AdminGalleriesPage() {
 
       {/* Delete Confirmation */}
       <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
-        <DialogContent className="bg-[#14141f] border-white/[0.08] max-w-sm">
+        <DialogContent className="bg-[#262633] border-white/[0.08] max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-lg">确认删除</DialogTitle>
           </DialogHeader>

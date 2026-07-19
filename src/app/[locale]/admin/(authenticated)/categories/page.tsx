@@ -198,7 +198,7 @@ export default function AdminCategoriesPage() {
         </Button>
       </div>
 
-      <div className="rounded-xl bg-[#14141f] border border-white/[0.06] overflow-hidden">
+      <div className="rounded-xl bg-[#262633] border border-white/[0.06] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -270,7 +270,7 @@ export default function AdminCategoriesPage() {
 
       {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="bg-[#14141f] border-white/[0.08] sm:max-w-lg w-[calc(100vw-2rem)] max-h-[92vh] overflow-hidden scrollbar-hide">
+        <DialogContent className="bg-[#262633] border-white/[0.08] sm:max-w-lg w-[calc(100vw-2rem)] max-h-[92vh] overflow-hidden scrollbar-hide">
           <DialogHeader className="shrink-0">
             <DialogTitle className="text-lg" style={{ fontFamily: 'Orbitron, sans-serif' }}>
               {editing ? '编辑分类' : '新增分类'}
@@ -362,7 +362,7 @@ export default function AdminCategoriesPage() {
 
       {/* Delete Confirmation */}
       <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
-        <DialogContent className="bg-[#14141f] border-white/[0.08] max-w-sm">
+        <DialogContent className="bg-[#262633] border-white/[0.08] max-w-sm">
           <DialogHeader>
             <DialogTitle className="text-lg">确认删除</DialogTitle>
           </DialogHeader>

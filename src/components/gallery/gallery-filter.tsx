@@ -167,7 +167,7 @@ export function GalleryFilter({
             placeholder={t('search')}
             className={cn(
               'w-full h-11 rounded-xl pl-11 pr-10',
-              'bg-[#14141f]/80 backdrop-blur-sm',
+              'bg-[#262633]/80 backdrop-blur-sm',
               'border border-white/[0.08]',
               'text-base text-foreground placeholder:text-muted-foreground/50',
               'focus:outline-none focus:border-[#00d4ff]/40 focus:ring-2 focus:ring-[#00d4ff]/10',
@@ -201,7 +201,7 @@ export function GalleryFilter({
             onClick={() => setSortOpen(!sortOpen)}
             className={cn(
               'flex items-center gap-2 h-11 px-4 rounded-xl',
-              'bg-[#14141f]/80 backdrop-blur-sm',
+              'bg-[#262633]/80 backdrop-blur-sm',
               'border border-white/[0.08]',
               'text-sm text-muted-foreground',
               'hover:text-foreground hover:border-white/[0.15]',
@@ -231,7 +231,7 @@ export function GalleryFilter({
               className={cn(
                 'absolute right-0 top-full mt-1.5 z-20 w-44',
                 'rounded-xl border border-white/[0.08]',
-                'bg-[#14141f]/95 backdrop-blur-xl',
+                'bg-[#262633]/95 backdrop-blur-xl',
                 'shadow-lg shadow-black/40',
                 'py-1.5 overflow-hidden'
               )}

@@ -36,7 +36,7 @@ export default function GalleryListLoading() {
             {Array.from({ length: 8 }).map((_, i) => (
               <div
                 key={i}
-                className="rounded-xl overflow-hidden bg-[#14141f] border border-white/[0.06]"
+                className="rounded-xl overflow-hidden bg-[#262633] border border-white/[0.06]"
               >
                 <div className="aspect-[3/4] bg-white/[0.03] animate-pulse" />
                 <div className="p-4 space-y-3">

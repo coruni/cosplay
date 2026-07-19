@@ -173,7 +173,7 @@ export function NsfwToggle({
 
       {/* Age confirmation dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md border-violet-500/20 bg-[#14141f]/95 backdrop-blur-xl">
+        <DialogContent className="sm:max-w-md border-violet-500/20 bg-[#262633]/95 backdrop-blur-xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-lg">
               <span className="inline-flex items-center justify-center w-7 h-7 rounded-full bg-violet-600/20 text-violet-400">

@@ -85,12 +85,12 @@ export function GalleryCard({ gallery, index = 0, priority = false }: GalleryCar
       }
       className={cn(
         'group relative cursor-pointer rounded-xl overflow-hidden',
-        'bg-[#14141f]/70 backdrop-blur-sm',
+        'bg-[#262633]/70 backdrop-blur-sm',
         'border border-white/[0.06]',
         'transition-all duration-300',
         'hover:border-[#ff2d78]/40',
         'hover:shadow-[0_0_30px_rgba(255,45,120,0.15),0_0_60px_rgba(255,45,120,0.05)]',
-        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff2d78]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0f]'
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff2d78]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1c1c28]'
       )}
       onClick={handleClick}
       onKeyDown={handleKeyDown}

@@ -40,21 +40,39 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     gallery.description[locale as keyof typeof gallery.description] ??
     gallery.description.en;
 
+  const isNsfw = gallery.rating === 'nsfw';
+
+  // NSFW tiers: never let adult content reach search engines / link previews.
+  //  - Hard noindex (plus noarchive/nosnippet) so it is fetched but never shown.
+  //  - No OG / Twitter image, so the adult cover is never fetched by social bots.
+  //  - Also excluded from sitemap.ts (SFW-only) and not linked to crawlers
+  //    (listings/related filter NSFW out at the DB layer when no cookie).
+  const robots = isNsfw
+    ? ('noindex, nofollow, noarchive, nosnippet, noimageindex' as const)
+    : ({ index: true, follow: true } as const);
+
+  const ogImage = isNsfw
+    ? undefined
+    : { images: [{ url: gallery.cover, width: 1200, height: 630 }] };
+  const twitterImage = isNsfw ? undefined : { images: [gallery.cover] };
+
   return {
     title: `${title} — ${gallery.cosplayer}`,
     description,
+    robots,
     openGraph: {
       title: `${title} — ${gallery.cosplayer}`,
       description,
       type: 'article',
       locale: locale === 'zh' ? 'zh_CN' : locale === 'ja' ? 'ja_JP' : 'en_US',
-      images: [{ url: gallery.cover, width: 1200, height: 630 }],
+      siteName: 'CosHub',
+      ...ogImage,
     },
     twitter: {
       card: 'summary_large_image',
       title: `${title} — ${gallery.cosplayer}`,
       description,
-      images: [gallery.cover],
+      ...twitterImage,
     },
     alternates: {
       languages: {
@@ -81,6 +99,7 @@ export default async function GalleryDetailPage({ params }: Props) {
     notFound();
   }
 
+  const isNsfw = gallery.rating === 'nsfw';
   const showNsfw = await getShowNsfwServer();
   const relatedGalleries = await getRelatedGalleries(gallery, 4, showNsfw);
 
@@ -121,7 +140,7 @@ export default async function GalleryDetailPage({ params }: Props) {
           className="absolute inset-0 pointer-events-none"
           style={{
             background:
-              'linear-gradient(to top, #0a0a0f 0%, rgba(10,10,15,0.8) 20%, rgba(10,10,15,0.3) 50%, rgba(10,10,15,0.1) 100%)',
+              'linear-gradient(to top, #1c1c28 0%, rgba(10,10,15,0.8) 20%, rgba(10,10,15,0.3) 50%, rgba(10,10,15,0.1) 100%)',
           }}
         />
         <div
@@ -158,7 +177,7 @@ export default async function GalleryDetailPage({ params }: Props) {
           <div
             className={cn(
               'rounded-2xl p-6 sm:p-8 lg:p-10',
-              'bg-[#14141f]/90 backdrop-blur-xl',
+              'bg-[#262633]/90 backdrop-blur-xl',
               'border border-white/[0.06]',
               'shadow-2xl shadow-black/40'
             )}
@@ -335,7 +354,9 @@ export default async function GalleryDetailPage({ params }: Props) {
             '@type': 'CreativeWork',
             name: title,
             description,
-            image: gallery.cover,
+            // NSFW: omit the cover so the adult image URL never appears in
+            // structured data that parsers / caches might retain.
+            ...(isNsfw ? {} : { image: gallery.cover }),
             author: {
               '@type': 'Person',
               name: gallery.cosplayer,

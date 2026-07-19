@@ -121,7 +121,7 @@ export function Footer() {
       </div>
 
       {/* Main footer content */}
-      <div className="bg-[#0a0a0f]">
+      <div className="bg-[#1c1c28]">
         <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8 lg:py-16">
           <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
             {/* Column 1: About */}
@@ -160,7 +160,7 @@ export function Footer() {
                           'group inline-flex items-center gap-1.5',
                           'text-sm text-muted-foreground',
                           'hover:text-[#00d4ff] transition-colors duration-150',
-                          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0f]',
+                          'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-[#1c1c28]',
                           'rounded-md px-1 py-1 -mx-1'
                         )}
                         style={{ minHeight: 36 }}

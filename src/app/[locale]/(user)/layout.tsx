@@ -18,7 +18,7 @@ export default async function UserLayout({
     <>
       <Header />
       <UserNav />
-      <main className="flex-1 min-h-screen bg-[#0a0a0f]">
+      <main className="flex-1 min-h-screen bg-[#1c1c28]">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 py-8">{children}</div>
       </main>
       <Footer />

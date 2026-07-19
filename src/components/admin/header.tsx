@@ -28,7 +28,7 @@ export function AdminHeader({ onMenuClick }: AdminHeaderProps) {
     <header
       className={cn(
         'sticky top-0 z-30 h-16',
-        'bg-[#0a0a0f]/80 backdrop-blur-xl',
+        'bg-[#1c1c28]/80 backdrop-blur-xl',
         'border-b border-white/[0.06]',
         'flex items-center gap-4 px-4 lg:px-6'
       )}

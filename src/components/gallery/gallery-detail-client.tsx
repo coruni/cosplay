@@ -308,7 +308,7 @@ export function GalleryDetailClient({
                 'shadow-[0_0_30px_rgba(255,45,120,0.4)]',
                 'hover:shadow-[0_0_40px_rgba(255,45,120,0.5)]',
                 'transition-all duration-300',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff2d78]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0f]',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff2d78]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1c1c28]',
                 'disabled:opacity-60 disabled:cursor-not-allowed',
                 'active:scale-[0.98]'
               )}
@@ -363,7 +363,7 @@ export function GalleryDetailClient({
                 'shadow-[0_0_30px_rgba(0,212,255,0.4)]',
                 'hover:shadow-[0_0_40px_rgba(0,212,255,0.5)]',
                 'transition-all duration-300',
-                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00d4ff]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0f]',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00d4ff]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1c1c28]',
                 'active:scale-[0.98]'
               )}
               style={{ minHeight: 52 }}
@@ -496,7 +496,7 @@ export function GalleryDetailClient({
                 key={image}
                 className={cn(
                   'relative aspect-[3/4] rounded-xl overflow-hidden',
-                  'bg-[#14141f] border border-white/[0.06]',
+                  'bg-[#262633] border border-white/[0.06]',
                   'group'
                 )}
               >
@@ -606,7 +606,7 @@ export function GalleryDetailClient({
               className={cn(
                 'w-full max-w-md rounded-2xl',
                 'border border-violet-500/20',
-                'bg-[#14141f]/95 backdrop-blur-xl',
+                'bg-[#262633]/95 backdrop-blur-xl',
                 'p-6 sm:p-8',
                 'shadow-2xl shadow-violet-950/30'
               )}

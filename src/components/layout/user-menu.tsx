@@ -118,7 +118,7 @@ export function UserMenu() {
             className={cn(
               'absolute right-0 top-full mt-1 w-48',
               'rounded-lg border border-white/[0.08]',
-              'bg-[#14141f]/95 backdrop-blur-xl',
+              'bg-[#262633]/95 backdrop-blur-xl',
               'shadow-lg shadow-black/30',
               'py-1 z-50'
             )}

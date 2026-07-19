@@ -81,9 +81,9 @@ export default async function CategoriesPage({
                 href={`/${locale}/gallery?category=${cat.slug}`}
                 className={cn(
                   'group relative overflow-hidden rounded-xl border border-white/[0.06]',
-                  'bg-[#14141f]/80 backdrop-blur-sm',
+                  'bg-[#262633]/80 backdrop-blur-sm',
                   'p-6 flex flex-col items-center justify-center gap-3',
-                  'hover:border-[#ff2d78]/30 hover:bg-[#14141f]',
+                  'hover:border-[#ff2d78]/30 hover:bg-[#262633]',
                   'transition-all duration-300',
                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff2d78]/50',
                   'min-h-[120px]'

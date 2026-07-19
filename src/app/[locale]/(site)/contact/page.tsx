@@ -56,7 +56,7 @@ export default async function ContactPage({ params }: Props) {
           {channels.map((c) => (
             <div
               key={c.title}
-              className="flex items-start gap-4 rounded-2xl border border-white/[0.06] bg-[#14141f]/60 p-6"
+              className="flex items-start gap-4 rounded-2xl border border-white/[0.06] bg-[#262633]/60 p-6"
             >
               <div className="flex items-center justify-center size-11 rounded-xl bg-[#ff2d78]/10 shrink-0">
                 <c.icon className="size-5 text-[#ff2d78]" aria-hidden="true" />

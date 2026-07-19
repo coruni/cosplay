@@ -116,7 +116,7 @@ export default async function AdminDashboardPage() {
               key={stat.label}
               className={cn(
                 'rounded-xl p-5',
-                'bg-[#14141f] border border-white/[0.06]',
+                'bg-[#262633] border border-white/[0.06]',
                 'hover:border-white/[0.12] transition-all duration-200'
               )}
             >
@@ -139,7 +139,7 @@ export default async function AdminDashboardPage() {
       {/* Two columns: Recent Orders + Top Galleries */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Recent Orders */}
-        <div className="rounded-xl bg-[#14141f] border border-white/[0.06] overflow-hidden">
+        <div className="rounded-xl bg-[#262633] border border-white/[0.06] overflow-hidden">
           <div className="px-5 py-4 border-b border-white/[0.06]">
             <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
               <CreditCardIcon className="size-4 text-[#a855f7]" />
@@ -192,7 +192,7 @@ export default async function AdminDashboardPage() {
         </div>
 
         {/* Top Galleries */}
-        <div className="rounded-xl bg-[#14141f] border border-white/[0.06] overflow-hidden">
+        <div className="rounded-xl bg-[#262633] border border-white/[0.06] overflow-hidden">
           <div className="px-5 py-4 border-b border-white/[0.06]">
             <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
               <EyeIcon className="size-4 text-[#ff2d78]" />
@@ -240,7 +240,7 @@ export default async function AdminDashboardPage() {
       </div>
 
       {/* Recent Users */}
-      <div className="rounded-xl bg-[#14141f] border border-white/[0.06] overflow-hidden">
+      <div className="rounded-xl bg-[#262633] border border-white/[0.06] overflow-hidden">
         <div className="px-5 py-4 border-b border-white/[0.06]">
           <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
             <UsersIcon className="size-4 text-[#00d4ff]" />
@@ -269,7 +269,7 @@ export default async function AdminDashboardPage() {
                   <tr key={u.id} className="border-b border-white/[0.02] hover:bg-white/[0.02] transition-colors">
                     <td className="px-5 py-3">
                       <div className="flex items-center gap-3">
-                        <div className="size-9 rounded-full overflow-hidden bg-[#0a0a0f] border border-white/[0.06] shrink-0">
+                        <div className="size-9 rounded-full overflow-hidden bg-[#1c1c28] border border-white/[0.06] shrink-0">
                           {u.avatar ? (
                             // eslint-disable-next-line @next/next/no-img-element
                             <img

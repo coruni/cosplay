@@ -85,7 +85,7 @@ export function ImageViewer({
         animate={{ opacity: 1 }}
         exit={shouldReduceMotion ? undefined : { opacity: 0 }}
         transition={{ duration: 0.2 }}
-        className="fixed inset-0 z-50 flex items-center justify-center bg-[#0a0a0f]/95 backdrop-blur-xl"
+        className="fixed inset-0 z-50 flex items-center justify-center bg-[#1c1c28]/95 backdrop-blur-xl"
         onClick={onClose}
       >
         {/* Close button */}

@@ -93,7 +93,7 @@ export default function AdminOrdersPage() {
     <div className="space-y-6">
       {/* Stats bar */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div className="rounded-xl p-5 bg-[#14141f] border border-white/[0.06] flex items-center gap-4">
+        <div className="rounded-xl p-5 bg-[#262633] border border-white/[0.06] flex items-center gap-4">
           <div className="size-10 rounded-lg bg-emerald-500/10 flex items-center justify-center">
             <DollarSignIcon className="size-5 text-emerald-400" />
           </div>
@@ -102,7 +102,7 @@ export default function AdminOrdersPage() {
             <p className="text-sm text-muted-foreground">总收入</p>
           </div>
         </div>
-        <div className="rounded-xl p-5 bg-[#14141f] border border-white/[0.06] flex items-center gap-4">
+        <div className="rounded-xl p-5 bg-[#262633] border border-white/[0.06] flex items-center gap-4">
           <div className="size-10 rounded-lg bg-[#a855f7]/10 flex items-center justify-center">
             <CreditCardIcon className="size-5 text-[#a855f7]" />
           </div>
@@ -138,7 +138,7 @@ export default function AdminOrdersPage() {
       </div>
 
       {/* Orders table */}
-      <div className="rounded-xl bg-[#14141f] border border-white/[0.06] overflow-hidden">
+      <div className="rounded-xl bg-[#262633] border border-white/[0.06] overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>

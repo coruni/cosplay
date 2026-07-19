@@ -92,7 +92,7 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
         className={cn(
           'w-[280px] sm:w-[320px] p-0',
           // Cyberpunk glassmorphism styling
-          'bg-[#0a0a0f]/95 backdrop-blur-xl border-l border-white/[0.06]',
+          'bg-[#1c1c28]/95 backdrop-blur-xl border-l border-white/[0.06]',
           // Subtle inner glow on the left edge
           'shadow-[-8px_0_32px_rgba(0,0,0,0.5)]'
         )}
@@ -162,7 +162,7 @@ export function MobileNav({ open, onClose }: MobileNavProps) {
                       'hover:bg-white/[0.06] hover:text-foreground',
                       'active:bg-white/[0.1]',
                       'transition-colors duration-150',
-                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0f]'
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-[#1c1c28]'
                     )}
                     style={{ minHeight: 44 }}
                   >

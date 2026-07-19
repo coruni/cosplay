@@ -50,7 +50,7 @@ export default async function FaqPage({ params }: Props) {
           {faqs.map((item, i) => (
             <div
               key={i}
-              className="rounded-2xl border border-white/[0.06] bg-[#14141f]/60 p-6"
+              className="rounded-2xl border border-white/[0.06] bg-[#262633]/60 p-6"
             >
               <h2 className="text-lg font-semibold text-foreground mb-2">
                 {item.q}

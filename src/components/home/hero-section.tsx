@@ -58,7 +58,7 @@ export function HeroSection({ categories }: HeroSectionProps) {
       {/* ========== Animated Gradient Mesh Background ========== */}
       <div className="absolute inset-0 z-0" aria-hidden="true">
         {/* Deep space base */}
-        <div className="absolute inset-0 bg-[#0a0a0f]" />
+        <div className="absolute inset-0 bg-[#1c1c28]" />
 
         {/* Gradient mesh blobs */}
         <div
@@ -209,7 +209,7 @@ export function HeroSection({ categories }: HeroSectionProps) {
               'shadow-[0_0_30px_rgba(255,45,120,0.4),0_0_60px_rgba(255,45,120,0.15)]',
               'hover:shadow-[0_0_40px_rgba(255,45,120,0.5),0_0_80px_rgba(255,45,120,0.2)]',
               'transition-all duration-300',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff2d78]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0f]',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#ff2d78]/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1c1c28]',
               'active:scale-[0.98]'
             )}
             style={{ minHeight: 52, minWidth: 44 }}
@@ -233,7 +233,7 @@ export function HeroSection({ categories }: HeroSectionProps) {
               'hover:border-[#00d4ff]/50',
               'hover:shadow-[0_0_20px_rgba(0,212,255,0.15)]',
               'transition-all duration-300',
-              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00d4ff]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0a0f]',
+              'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00d4ff]/40 focus-visible:ring-offset-2 focus-visible:ring-offset-[#1c1c28]',
               'active:scale-[0.98]'
             )}
             style={{ minHeight: 52, minWidth: 44 }}

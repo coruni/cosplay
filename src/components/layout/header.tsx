@@ -183,7 +183,7 @@ export function Header() {
           'sticky top-0 z-40 w-full',
           'transition-all duration-300',
           scrolled
-            ? 'bg-[#0a0a0f]/80 backdrop-blur-xl border-b border-white/[0.06] shadow-[0_1px_0_rgba(255,255,255,0.03),0_8px_32px_rgba(0,0,0,0.4)]'
+            ? 'bg-[#1c1c28]/80 backdrop-blur-xl border-b border-white/[0.06] shadow-[0_1px_0_rgba(255,255,255,0.03),0_8px_32px_rgba(0,0,0,0.4)]'
             : 'bg-transparent'
         )}
       >
@@ -361,7 +361,7 @@ export function Header() {
                   className={cn(
                     'absolute right-0 top-full mt-1 w-36',
                     'rounded-lg border border-white/[0.08]',
-                    'bg-[#14141f]/95 backdrop-blur-xl',
+                    'bg-[#262633]/95 backdrop-blur-xl',
                     'shadow-lg shadow-black/30',
                     'py-1 overflow-hidden'
                   )}
@@ -440,7 +440,7 @@ export function Header() {
                 duration: shouldReduceMotion ? 0 : 0.2,
                 ease: 'easeOut',
               }}
-              className="sm:hidden overflow-hidden border-b border-white/[0.06] bg-[#0a0a0f]/90 backdrop-blur-xl"
+              className="sm:hidden overflow-hidden border-b border-white/[0.06] bg-[#1c1c28]/90 backdrop-blur-xl"
             >
               <form
                 onSubmit={handleSearchSubmit}

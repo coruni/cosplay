@@ -110,7 +110,7 @@ export function MembershipPanel(props: MembershipPanelProps) {
   ];
 
   return (
-    <div className="rounded-2xl p-6 bg-[#14141f]/60 border border-white/[0.06] space-y-5">
+    <div className="rounded-2xl p-6 bg-[#262633]/60 border border-white/[0.06] space-y-5">
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-3">
           <div

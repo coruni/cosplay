@@ -18,7 +18,7 @@ export function UserNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="border-b border-white/[0.06] bg-[#0a0a0f]/60 backdrop-blur-md sticky top-16 z-30">
+    <nav className="border-b border-white/[0.06] bg-[#1c1c28]/60 backdrop-blur-md sticky top-16 z-30">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 flex gap-1 overflow-x-auto">
         {navItems.map((item) => {
           const href = `/${locale}${item.href}`;

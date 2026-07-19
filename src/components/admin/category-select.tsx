@@ -97,7 +97,7 @@ export function CategorySelect({ value, onChange }: CategorySelectProps) {
         </button>
 
         {open && (
-          <div className="absolute z-30 mt-1.5 w-full rounded-xl border border-white/[0.08] bg-[#14141f] shadow-lg shadow-black/40 overflow-hidden">
+          <div className="absolute z-30 mt-1.5 w-full rounded-xl border border-white/[0.08] bg-[#262633] shadow-lg shadow-black/40 overflow-hidden">
             <div className="p-2 border-b border-white/[0.06]">
               <input
                 autoFocus

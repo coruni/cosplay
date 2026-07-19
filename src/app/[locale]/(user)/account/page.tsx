@@ -35,7 +35,7 @@ export default async function AccountPage() {
 
       <div className="grid gap-6 md:grid-cols-2">
         {/* Info card */}
-        <div className="rounded-2xl p-6 bg-[#14141f]/60 border border-white/[0.06] space-y-4">
+        <div className="rounded-2xl p-6 bg-[#262633]/60 border border-white/[0.06] space-y-4">
           <h2 className="text-lg font-semibold text-foreground">
             {t('accountSettings')}
           </h2>
@@ -58,7 +58,7 @@ export default async function AccountPage() {
         </div>
 
         {/* Editor card */}
-        <div className="rounded-2xl p-6 bg-[#14141f]/60 border border-white/[0.06]">
+        <div className="rounded-2xl p-6 bg-[#262633]/60 border border-white/[0.06]">
           <h2 className="text-lg font-semibold text-foreground mb-4">
             {t('nickname')} / {t('avatar')}
           </h2>

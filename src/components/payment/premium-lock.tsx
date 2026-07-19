@@ -76,7 +76,7 @@ export function PremiumLock({ gallery, isPurchased = false, className }: Premium
     <>
       <div className={cn('relative', className)}>
         {/* Blur overlay */}
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#0a0a0f]/60 backdrop-blur-md rounded-xl">
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-[#1c1c28]/60 backdrop-blur-md rounded-xl">
           <motion.div
             initial={shouldReduceMotion ? undefined : { scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -119,7 +119,7 @@ export function PremiumLock({ gallery, isPurchased = false, className }: Premium
 
       {/* Payment Dialog */}
       <Dialog open={payDialogOpen} onOpenChange={setPayDialogOpen}>
-        <DialogContent className="bg-[#14141f] border-white/[0.08] max-w-md">
+        <DialogContent className="bg-[#262633] border-white/[0.08] max-w-md">
           <DialogHeader>
             <DialogTitle
               className="text-xl"
@@ -135,7 +135,7 @@ export function PremiumLock({ gallery, isPurchased = false, className }: Premium
 
           <div className="space-y-4 py-4">
             {/* Order summary */}
-            <div className="rounded-lg border border-white/[0.06] bg-[#0a0a0f]/50 p-4 space-y-2">
+            <div className="rounded-lg border border-white/[0.06] bg-[#1c1c28]/50 p-4 space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">{t('detail.cosplayer')}</span>
                 <span className="text-foreground">{gallery.cosplayer}</span>

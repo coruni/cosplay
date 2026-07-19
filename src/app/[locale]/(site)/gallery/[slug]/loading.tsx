@@ -4,11 +4,11 @@ export default function GalleryLoading() {
   return (
     <div className="min-h-screen flex flex-col">
       {/* Skeleton hero */}
-      <div className="w-full h-[50vh] sm:h-[60vh] bg-[#14141f] animate-pulse" />
+      <div className="w-full h-[50vh] sm:h-[60vh] bg-[#262633] animate-pulse" />
 
       <div className="relative -mt-20 px-4 sm:px-6 lg:px-8">
         <div className="max-w-5xl mx-auto">
-          <div className="rounded-2xl p-6 sm:p-8 lg:p-10 bg-[#14141f]/90 border border-white/[0.06]">
+          <div className="rounded-2xl p-6 sm:p-8 lg:p-10 bg-[#262633]/90 border border-white/[0.06]">
             {/* Skeleton badges */}
             <div className="flex gap-2.5 mb-4">
               <div className="h-6 w-16 rounded-lg bg-white/[0.04] animate-pulse" />

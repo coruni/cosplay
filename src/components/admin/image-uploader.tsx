@@ -252,7 +252,7 @@ export function ImageUploader({
               <div
                 key={key + index}
                 className={cn(
-                  'relative aspect-square rounded-lg overflow-hidden border group bg-[#0a0a0f]',
+                  'relative aspect-square rounded-lg overflow-hidden border group bg-[#1c1c28]',
                   isCover ? 'border-[#ff2d78]/60' : 'border-white/[0.06]'
                 )}
               >
