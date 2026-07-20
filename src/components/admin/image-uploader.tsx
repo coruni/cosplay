@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useRef } from 'react';
+import { useTranslations } from 'next-intl';
 import { UploadCloudIcon, XIcon, Loader2Icon, AlertCircleIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { uploadImage, type UploadProvider } from '@/lib/upload';
@@ -18,7 +19,7 @@ interface ImageUploaderProps {
   /** Label above the dropzone */
   label?: string;
   className?: string;
-  /** Current cover key (multiple mode) — highlights it and offers "设为封面" */
+  /** Current cover key (multiple mode) — highlights it and offers "set as cover" */
   cover?: string;
   /** Called when the user picks an image as the cover (multiple mode) */
   onSetCover?: (key: string) => void;
@@ -60,6 +61,7 @@ export function ImageUploader({
   const [error, setError] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
+  const t = useTranslations('admin.imageUploader');
 
   const handleFiles = useCallback(
     async (files: FileList) => {
@@ -187,13 +189,13 @@ export function ImageUploader({
         )}
         <span className="text-xs text-muted-foreground">
           {isUploading
-            ? '上传中...'
+            ? t('uploading')
             : multiple
-              ? '点击或拖拽上传多张图片'
-              : '点击或拖拽上传封面图'}
+              ? t('dropMultiple')
+              : t('dropSingle')}
         </span>
         <span className="text-[10px] text-muted-foreground/60">
-          支持 JPG / PNG / WebP / GIF / AVIF
+          {t('supportedFormats')}
         </span>
         <input
           ref={inputRef}
@@ -267,7 +269,7 @@ export function ImageUploader({
                   type="button"
                   onClick={() => handleRemove(index)}
                   className="absolute top-1 right-1 size-6 rounded-full bg-black/70 hover:bg-red-500/80 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity"
-                  aria-label="删除此图片"
+                  aria-label={t('removeAria')}
                 >
                   <XIcon className="size-3" />
                 </button>
@@ -281,9 +283,9 @@ export function ImageUploader({
                         ? 'bg-[#ff2d78] text-white'
                         : 'bg-black/60 text-white/90 hover:bg-[#ff2d78]/80 opacity-0 group-hover:opacity-100 focus-visible:opacity-100'
                     )}
-                    aria-label="设为封面"
+                    aria-label={t('setCoverAria')}
                   >
-                    {isCover ? '封面' : '设为封面'}
+                    {isCover ? t('cover') : t('setCover')}
                   </button>
                 )}
                 {multiple && !onSetCover && (

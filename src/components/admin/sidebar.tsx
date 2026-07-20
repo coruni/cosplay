@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { useLocale } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboardIcon,
@@ -17,12 +17,14 @@ import {
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
-const navItems = [
-  { href: '/admin', label: '仪表盘', icon: LayoutDashboardIcon },
-  { href: '/admin/galleries', label: '图包管理', icon: ImageIcon },
-  { href: '/admin/categories', label: '分类管理', icon: TagsIcon },
-  { href: '/admin/orders', label: '订单管理', icon: CreditCardIcon },
-  { href: '/admin/users', label: '用户管理', icon: UsersIcon },
+type NavKey = 'dashboard' | 'galleries' | 'categories' | 'orders' | 'users';
+
+const navItems: { href: string; key: NavKey; icon: typeof LayoutDashboardIcon }[] = [
+  { href: '/admin', key: 'dashboard', icon: LayoutDashboardIcon },
+  { href: '/admin/galleries', key: 'galleries', icon: ImageIcon },
+  { href: '/admin/categories', key: 'categories', icon: TagsIcon },
+  { href: '/admin/orders', key: 'orders', icon: CreditCardIcon },
+  { href: '/admin/users', key: 'users', icon: UsersIcon },
 ];
 
 interface AdminSidebarProps {
@@ -36,6 +38,8 @@ export function AdminSidebar({ mobileOpen, onCloseMobile }: AdminSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const locale = useLocale();
+  const tNav = useTranslations('admin.nav');
+  const tCommon = useTranslations('admin.common');
   const [collapsed, setCollapsed] = useState(false);
 
   const handleLogout = () => {
@@ -95,7 +99,7 @@ export function AdminSidebar({ mobileOpen, onCloseMobile }: AdminSidebarProps) {
           <button
             onClick={() => setCollapsed(!collapsed)}
             className="lg:flex hidden ml-auto size-8 items-center justify-center rounded-md text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition-colors"
-            aria-label={collapsed ? '展开侧边栏' : '收起侧边栏'}
+            aria-label={collapsed ? tCommon('expandSidebar') : tCommon('collapseSidebar')}
           >
             <ChevronLeftIcon
               className={cn('size-4 transition-transform', collapsed && 'rotate-180')}
@@ -105,7 +109,7 @@ export function AdminSidebar({ mobileOpen, onCloseMobile }: AdminSidebarProps) {
           <button
             onClick={onCloseMobile}
             className="lg:hidden ml-auto size-8 flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
-            aria-label="关闭菜单"
+            aria-label={tCommon('closeMenu')}
           >
             <XIcon className="size-4" />
           </button>
@@ -132,7 +136,7 @@ export function AdminSidebar({ mobileOpen, onCloseMobile }: AdminSidebarProps) {
                 style={{ minHeight: 44 }}
               >
                 <Icon className="size-5 shrink-0" />
-                {!collapsed && <span>{item.label}</span>}
+                {!collapsed && <span>{tNav(item.key)}</span>}
               </a>
             );
           })}
@@ -150,7 +154,7 @@ export function AdminSidebar({ mobileOpen, onCloseMobile }: AdminSidebarProps) {
             style={{ minHeight: 44 }}
           >
             <LogOutIcon className="size-5 shrink-0" />
-            {!collapsed && <span>退出登录</span>}
+            {!collapsed && <span>{tCommon('logout')}</span>}
           </button>
         </div>
       </aside>

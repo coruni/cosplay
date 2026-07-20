@@ -19,32 +19,15 @@ export default async function FaqPage({ params }: Props) {
     notFound();
   }
   setRequestLocale(locale);
-  const t = await getTranslations({ locale, namespace: 'footer' });
-
-  const faqs = [
-    {
-      q: 'CosHub 是什么？',
-      a: 'CosHub 是一个 Cosplay 图包分享社区，汇集来自不同作品的精选写真与主题图包。',
-    },
-    {
-      q: '如何下载图包？',
-      a: '浏览图包详情页，付费图包可单次购买解锁或开通会员后使用额度下载；部分图包提供网盘等外部下载链接。',
-    },
-    {
-      q: '会员额度如何计算？',
-      a: '会员每月拥有固定下载额度，解锁或下载会消耗额度，额度按订阅周期（30 天）自动重置。',
-    },
-    {
-      q: 'NSFW 内容如何查看？',
-      a: '在页面顶部开启 NSFW 开关即可浏览成人向内容，该偏好通过 Cookie 记录。',
-    },
-  ];
+  const tFooter = await getTranslations({ locale, namespace: 'footer' });
+  const t = await getTranslations({ locale, namespace: 'faq' });
+  const faqs = t.raw('items') as Array<{ q: string; a: string }>;
 
   return (
     <div className="min-h-screen px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
       <div className="max-w-3xl mx-auto">
         <h1 className="text-3xl sm:text-4xl font-bold text-foreground mb-10">
-          {t('faq')}
+          {tFooter('faq')}
         </h1>
         <div className="space-y-6">
           {faqs.map((item, i) => (

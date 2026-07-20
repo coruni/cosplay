@@ -154,7 +154,7 @@ export function GalleryCard({ gallery, index = 0, priority = false }: GalleryCar
           ) : isMembersOnly ? (
             <>
               <SparklesIcon className="size-3" aria-hidden="true" />
-              会员专享
+              {t('membersOnly')}
             </>
           ) : (
             <>

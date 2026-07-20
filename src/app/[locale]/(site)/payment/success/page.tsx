@@ -77,7 +77,7 @@ export default async function PaymentSuccessPage({
           )}
           {order && (
             <p className="text-sm text-emerald-400/80 mt-1">
-              ¥{order.amount.toFixed(2)} — {order.status === 'paid' ? '已支付' : '处理中'}
+              ¥{order.amount.toFixed(2)} — {order.status === 'paid' ? t('statusPaid') : t('statusProcessing')}
             </p>
           )}
         </div>

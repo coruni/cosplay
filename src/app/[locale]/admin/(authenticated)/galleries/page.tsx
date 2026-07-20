@@ -29,7 +29,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
-import { useLocale } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { ImageUploader } from '@/components/admin/image-uploader';
 import { TagInput } from '@/components/admin/tag-input';
 import { CategorySelect } from '@/components/admin/category-select';
@@ -108,17 +108,19 @@ export default function AdminGalleriesPage() {
   const [translateSource, setTranslateSource] = useState<GalleryLang>('zh');
   const router = useRouter();
   const locale = useLocale();
+  const t = useTranslations('admin.galleries');
+  const tCommon = useTranslations('admin.common');
 
   const validate = (f: Partial<GalleryItem>): Record<string, string> => {
     const e: Record<string, string> = {};
-    if (!f.titleZh?.trim()) e.titleZh = '请填写中文标题';
+    if (!f.titleZh?.trim()) e.titleZh = t('errorTitleZh');
     if (!f.slug?.trim()) {
-      e.slug = '请填写 Slug';
+      e.slug = t('errorSlugRequired');
     } else if (!/^[a-z0-9-]+$/.test(f.slug)) {
-      e.slug = 'Slug 只能包含小写字母、数字和连字符';
+      e.slug = t('errorSlugFormat');
     }
-    if (!f.cover) e.cover = '请上传封面图';
-    if (!f.images || f.images.length === 0) e.images = '请至少上传一张图包图片';
+    if (!f.cover) e.cover = t('errorCover');
+    if (!f.images || f.images.length === 0) e.images = t('errorImages');
     return e;
   };
 
@@ -237,8 +239,7 @@ export default function AdminGalleriesPage() {
       if (!res) {
         setErrors((p) => ({
           ...p,
-          slug:
-            '请先填写标题（中文/英文/日文均可，将自动翻译为英文生成 Slug）；也可直接在下方手动输入。',
+          slug: t('lazyToolHint'),
         }));
         return;
       }
@@ -296,7 +297,7 @@ export default function AdminGalleriesPage() {
         <div className="relative flex-1 max-w-sm">
           <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
-            placeholder="搜索图包..."
+            placeholder={t('searchPlaceholder')}
             value={query}
             onChange={(e) => { setQuery(e.target.value); setPage(1); }}
             className="pl-9 bg-white/[0.03] border-white/[0.08]"
@@ -309,7 +310,7 @@ export default function AdminGalleriesPage() {
           style={{ boxShadow: '0 0 16px rgba(255,45,120,0.3)' }}
         >
           <PlusIcon className="size-4 mr-2" />
-          新增图包
+          {t('create')}
         </Button>
       </div>
 
@@ -319,12 +320,12 @@ export default function AdminGalleriesPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/[0.06] bg-white/[0.01]">
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">封面</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">标题</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground hidden md:table-cell">Cosplayer</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground hidden lg:table-cell">分级</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground hidden lg:table-cell">价格</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground">操作</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">{t('colCover')}</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">{t('colTitle')}</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground hidden md:table-cell">{t('cosplayer')}</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground hidden lg:table-cell">{t('colRating')}</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground hidden lg:table-cell">{t('colPrice')}</th>
+                <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground">{t('colActions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -338,7 +339,7 @@ export default function AdminGalleriesPage() {
                 <tr>
                   <td colSpan={6} className="px-4 py-12 text-center text-muted-foreground">
                     <ImageIcon className="size-8 mx-auto mb-2 opacity-40" />
-                    暂无图包
+                    {t('noData')}
                   </td>
                 </tr>
               ) : (
@@ -384,10 +385,10 @@ export default function AdminGalleriesPage() {
                         <span className="text-[#ff2d78] font-medium">¥{g.price}</span>
                       ) : g.isPremium ? (
                         <span className="text-[#ff2d78] font-medium text-xs px-2 py-0.5 rounded-full bg-[#ff2d78]/10 border border-[#ff2d78]/20">
-                          会员专享
+                          {t('membersOnly')}
                         </span>
                       ) : (
-                        <span className="text-emerald-400 font-medium">免费</span>
+                        <span className="text-emerald-400 font-medium">{t('free')}</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -395,14 +396,14 @@ export default function AdminGalleriesPage() {
                         <button
                           onClick={() => openEdit(g)}
                           className="size-9 flex items-center justify-center rounded-lg text-muted-foreground hover:text-[#00d4ff] hover:bg-[#00d4ff]/10 transition-colors"
-                          aria-label="编辑"
+                          aria-label={tCommon('edit')}
                         >
                           <PencilIcon className="size-4" />
                         </button>
                         <button
                           onClick={() => setDeleteConfirm(g.id)}
                           className="size-9 flex items-center justify-center rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                          aria-label="删除"
+                          aria-label={tCommon('delete')}
                         >
                           <Trash2Icon className="size-4" />
                         </button>
@@ -419,7 +420,7 @@ export default function AdminGalleriesPage() {
         {totalPages > 1 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-white/[0.06]">
             <span className="text-xs text-muted-foreground">
-              第 {page} / {totalPages} 页
+              {t('page', { page, total: totalPages })}
             </span>
             <div className="flex gap-1">
               <Button
@@ -450,7 +451,7 @@ export default function AdminGalleriesPage() {
         <DialogContent className="bg-[#262633] border-white/[0.08] sm:max-w-6xl w-[calc(100vw-2rem)] max-h-[92vh] overflow-hidden scrollbar-hide">
           <DialogHeader className="shrink-0">
             <DialogTitle className="text-lg" style={{ fontFamily: 'Orbitron, sans-serif' }}>
-              {editing ? '编辑图包' : '新增图包'}
+              {editing ? t('edit') : t('create')}
             </DialogTitle>
           </DialogHeader>
 
@@ -459,9 +460,9 @@ export default function AdminGalleriesPage() {
             <section className="rounded-xl border border-[#ff2d78]/15 bg-[#ff2d78]/[0.03] p-4 space-y-3">
               <div className="flex items-center gap-2 text-sm font-medium text-[#ff2d78]">
                 <Wand2Icon className="size-4" />
-                偷懒工具
+                {t('lazyToolTitle')}
                 <span className="text-xs font-normal text-muted-foreground">
-                  （一键生成，省去手工填写）
+                  {t('lazyToolDesc')}
                 </span>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -478,7 +479,7 @@ export default function AdminGalleriesPage() {
                   ) : (
                     <SparklesIcon className="size-3.5 mr-1.5" />
                   )}
-                  自动 Slug
+                  {t('autoSlug')}
                 </Button>
                 <Button
                   type="button"
@@ -488,7 +489,7 @@ export default function AdminGalleriesPage() {
                   className="border-[#ff2d78]/30 text-[#ff2d78] hover:bg-[#ff2d78]/10"
                 >
                   <SparklesIcon className="size-3.5 mr-1.5" />
-                  自动描述
+                  {t('autoDesc')}
                 </Button>
                 <div className="flex items-center gap-2 pl-1">
                   <Button
@@ -504,9 +505,9 @@ export default function AdminGalleriesPage() {
                     ) : (
                       <LanguagesIcon className="size-3.5 mr-1.5" />
                     )}
-                    翻译填充
+                    {t('translateFill')}
                   </Button>
-                  <span className="text-xs text-muted-foreground">源语言</span>
+                  <span className="text-xs text-muted-foreground">{t('sourceLang')}</span>
                   <select
                     value={translateSource}
                     onChange={(e) => setTranslateSource(e.target.value as GalleryLang)}
@@ -521,17 +522,17 @@ export default function AdminGalleriesPage() {
                 </div>
               </div>
               <p className="text-xs text-muted-foreground/70">
-                翻译使用免费公共接口 MyMemory，需浏览器可联网；失败时自动回填原文，可手动修改。
+                {t('translateHint')}
               </p>
             </section>
 
             {/* Section: 基础信息 */}
             <section className="space-y-4">
-              <SectionTitle>基础信息</SectionTitle>
+              <SectionTitle>{t('sectionBasic')}</SectionTitle>
 
               {/* Slug */}
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Slug（URL 标识；点「自动 Slug」会用标题自动生成，中文标题会先翻译为英文再生成，也可手动修改）</Label>
+                <Label className="text-xs text-muted-foreground">{t('slugLabel')}</Label>
                 <Input
                   value={form.slug || ''}
                   onChange={(e) => {
@@ -540,7 +541,7 @@ export default function AdminGalleriesPage() {
                   }}
                   className="bg-white/[0.03] border-white/[0.08] font-mono text-sm"
                   style={{ minHeight: 40 }}
-                  placeholder="例如 2b-yukian"
+                  placeholder={t('slugPlaceholder')}
                 />
                 {errors.slug && <p className="text-xs text-red-400">{errors.slug}</p>}
               </div>
@@ -553,7 +554,7 @@ export default function AdminGalleriesPage() {
                 {(['Zh', 'En', 'Ja'] as const).map((lang) => (
                   <div key={lang} className="space-y-1.5">
                     <Label className="text-xs text-muted-foreground">
-                      标题 ({lang === 'Zh' ? '中文' : lang === 'En' ? 'English' : '日本語'})
+                      {t('titleLabel')} ({lang === 'Zh' ? '中文' : lang === 'En' ? 'English' : '日本語'})
                     </Label>
                     <Input
                       value={(form as any)[`title${lang}`] || ''}
@@ -570,7 +571,7 @@ export default function AdminGalleriesPage() {
                 {(['Zh', 'En', 'Ja'] as const).map((lang) => (
                   <div key={lang} className="space-y-1.5">
                     <Label className="text-xs text-muted-foreground">
-                      描述 ({lang === 'Zh' ? '中文' : lang === 'En' ? 'English' : '日本語'})
+                      {t('descLabel')} ({lang === 'Zh' ? '中文' : lang === 'En' ? 'English' : '日本語'})
                     </Label>
                     <Textarea
                       value={(form as any)[`description${lang}`] || ''}
@@ -585,12 +586,12 @@ export default function AdminGalleriesPage() {
 
             {/* Section: 关联信息 */}
             <section className="space-y-4">
-              <SectionTitle>关联信息</SectionTitle>
+              <SectionTitle>{t('sectionRelations')}</SectionTitle>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {[
-                  { key: 'cosplayer', label: 'Cosplayer' },
-                  { key: 'character', label: '角色' },
-                  { key: 'series', label: '原作' },
+                  { key: 'cosplayer', label: t('cosplayer') },
+                  { key: 'character', label: t('character') },
+                  { key: 'series', label: t('series') },
                 ].map(({ key, label }) => (
                   <div key={key} className="space-y-1.5">
                     <Label className="text-xs text-muted-foreground">{label}</Label>
@@ -607,9 +608,9 @@ export default function AdminGalleriesPage() {
 
             {/* Section: 媒体资源 */}
             <section className="space-y-4">
-              <SectionTitle>媒体资源</SectionTitle>
+              <SectionTitle>{t('sectionMedia')}</SectionTitle>
               <div className="flex flex-wrap items-center gap-3">
-                <span className="text-xs text-muted-foreground">存储后端</span>
+                <span className="text-xs text-muted-foreground">{t('storageBackend')}</span>
                 <div className="inline-flex rounded-lg border border-white/[0.08] overflow-hidden">
                   {(['s3', 'imagehost'] as const).map((p) => (
                     <button
@@ -623,15 +624,13 @@ export default function AdminGalleriesPage() {
                           : 'bg-white/[0.03] text-muted-foreground hover:bg-white/[0.06]'
                       )}
                     >
-                      {p === 's3' ? 'S3 对象存储' : '外部图床'}
+                      {p === 's3' ? t('storageS3') : t('storageImageHost')}
                     </button>
                   ))}
                 </div>
                 {uploadProvider === 'imagehost' && (
                   <span className="text-xs text-muted-foreground/70">
-                    {form.rating === 'nsfw'
-                      ? 'NSFW 图集将以 nsfw=1 标记上传'
-                      : '将以 nsfw=0 上传'}
+                    {form.rating === 'nsfw' ? t('nsfwUploadHint') : t('sfwUploadHint')}
                   </span>
                 )}
               </div>
@@ -643,7 +642,7 @@ export default function AdminGalleriesPage() {
                     onChange={(v) => updateForm('cover', v)}
                     provider={uploadProvider}
                     nsfw={form.rating === 'nsfw'}
-                    label="封面图"
+                    label={t('coverLabel')}
                   />
                   {errors.cover && (
                     <p className="text-xs text-red-400">{errors.cover}</p>
@@ -659,7 +658,7 @@ export default function AdminGalleriesPage() {
                     multiple
                     provider={uploadProvider}
                     nsfw={form.rating === 'nsfw'}
-                    label="图包图片（点击缩略图可设为封面）"
+                    label={t('imagesLabel')}
                   />
                   {errors.images && (
                     <p className="text-xs text-red-400">{errors.images}</p>
@@ -670,11 +669,11 @@ export default function AdminGalleriesPage() {
 
             {/* Section: 分类 & 标签 */}
             <section className="space-y-4">
-              <SectionTitle>分类 &amp; 标签</SectionTitle>
+              <SectionTitle>{t('sectionTaxonomy')}</SectionTitle>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1.5">
                   <Label className="text-xs text-muted-foreground">
-                    分类（从数据库中选择，可多选）
+                    {t('categoryHint')}
                   </Label>
                   <CategorySelect
                     value={form.categories || []}
@@ -682,31 +681,31 @@ export default function AdminGalleriesPage() {
                   />
                 </div>
                 <TagInput
-                  label="标签（回车添加）"
+                  label={t('tagsLabel')}
                   value={form.tags || []}
                   onChange={(tags) => updateForm('tags', tags)}
-                  placeholder="如：剑姬, 黑丝"
+                  placeholder={t('tagsPlaceholder')}
                 />
               </div>
             </section>
 
             {/* Section: 发布设置 */}
             <section className="space-y-4">
-              <SectionTitle>发布设置</SectionTitle>
+              <SectionTitle>{t('sectionPublish')}</SectionTitle>
               <div className="grid grid-cols-3 gap-3">
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">分级</Label>
+                  <Label className="text-xs text-muted-foreground">{t('ratingLabel')}</Label>
                   <select
                     value={form.rating || 'sfw'}
                     onChange={(e) => updateForm('rating', e.target.value)}
                     className="w-full h-10 rounded-lg bg-white/[0.03] border border-white/[0.08] text-foreground text-sm px-3"
                   >
-                    <option value="sfw">SFW 全年龄</option>
-                    <option value="nsfw">NSFW</option>
+                    <option value="sfw">{t('ratingSfw')}</option>
+                    <option value="nsfw">{t('ratingNsfw')}</option>
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-muted-foreground">价格 (¥)</Label>
+                  <Label className="text-xs text-muted-foreground">{t('priceLabel')}</Label>
                   <Input
                     type="number"
                     step="0.01"
@@ -719,12 +718,12 @@ export default function AdminGalleriesPage() {
                   {errors.price && <p className="text-xs text-red-400">{errors.price}</p>}
                   {form.isPremium && (form.price ?? 0) > 0 && (
                     <p className="text-xs text-muted-foreground/70">
-                      会员免费查看，非会员可按 ¥{(form.price ?? 0).toFixed(2)} 购买
+                      {t('pricePaidHint', { price: (form.price ?? 0).toFixed(2) })}
                     </p>
                   )}
                   {form.isPremium && (form.price ?? 0) <= 0 && (
                     <p className="text-xs text-muted-foreground/70">
-                      会员专享：未设价格时仅订阅会员可访问（不可单独购买）
+                      {t('priceFreeHint')}
                     </p>
                   )}
                 </div>
@@ -736,7 +735,7 @@ export default function AdminGalleriesPage() {
                       onChange={(e) => updateForm('isPremium', e.target.checked)}
                       className="size-4 rounded accent-[#ff2d78]"
                     />
-                    <span className="text-xs text-muted-foreground">会员专享</span>
+                    <span className="text-xs text-muted-foreground">{t('membersOnlyLabel')}</span>
                   </label>
                 </div>
               </div>
@@ -744,17 +743,17 @@ export default function AdminGalleriesPage() {
               {/* 外链下载地址（网盘/外部链接，可选） */}
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">
-                  外链下载地址（网盘/外部链接，可选）
+                  {t('externalDownloadLabel')}
                 </Label>
                 <Input
                   value={form.downloadUrl || ''}
                   onChange={(e) => updateForm('downloadUrl', e.target.value)}
-                  placeholder="如：https://pan.baidu.com/s/xxxx 或 https://drive.google.com/..."
+                  placeholder={t('externalDownloadPlaceholder')}
                   className="bg-white/[0.03] border-white/[0.08]"
                   style={{ minHeight: 40 }}
                 />
                 <p className="text-xs text-muted-foreground/70">
-                  填写后，详情页「下载」按钮将跳转到该外部链接，而非打包站内图片。
+                  {t('externalDownloadHint')}
                 </p>
               </div>
             </section>
@@ -763,7 +762,7 @@ export default function AdminGalleriesPage() {
           {/* Actions (sticky footer, outside scroll region) */}
           <div className="shrink-0 flex justify-end gap-3 pt-3 border-t border-white/[0.06]">
             <Button variant="ghost" onClick={() => setDialogOpen(false)} className="text-muted-foreground">
-              取消
+              {t('cancel')}
             </Button>
             <Button
               onClick={handleSave}
@@ -774,7 +773,7 @@ export default function AdminGalleriesPage() {
               {saving ? (
                 <Loader2Icon className="size-4 animate-spin mr-2" />
               ) : null}
-              {editing ? '保存修改' : '创建图包'}
+              {editing ? t('save') : t('createGallery')}
             </Button>
           </div>
         </DialogContent>
@@ -784,20 +783,20 @@ export default function AdminGalleriesPage() {
       <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
         <DialogContent className="bg-[#262633] border-white/[0.08] max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-lg">确认删除</DialogTitle>
+            <DialogTitle className="text-lg">{t('deleteTitle')}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            此操作不可撤销。确定要删除这个图包吗？
+            {t('deleteDesc')}
           </p>
           <div className="flex justify-end gap-3 pt-2">
             <Button variant="ghost" onClick={() => setDeleteConfirm(null)} className="text-muted-foreground">
-              取消
+              {t('cancelDelete')}
             </Button>
             <Button
               onClick={() => deleteConfirm && handleDelete(deleteConfirm)}
               className="bg-red-500 hover:bg-red-600 text-white"
             >
-              确认删除
+              {t('confirmDelete')}
             </Button>
           </div>
         </DialogContent>

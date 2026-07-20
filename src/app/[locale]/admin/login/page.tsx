@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useLocale } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { motion } from 'framer-motion';
 import { LockIcon, ShieldIcon, AlertCircleIcon } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils';
 export default function AdminLoginPage() {
   const router = useRouter();
   const locale = useLocale();
+  const t = useTranslations('admin.login');
   const [token, setToken] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -33,10 +34,10 @@ export default function AdminLoginPage() {
         document.cookie = `admin_token=${token}; path=/; max-age=86400; SameSite=Lax`;
         router.push(`/${locale}/admin`);
       } else {
-        setError('无效的管理员令牌，请重试');
+        setError(t('invalid'));
       }
     } catch {
-      setError('网络错误，请重试');
+      setError(t('networkError'));
     } finally {
       setLoading(false);
     }
@@ -92,7 +93,7 @@ export default function AdminLoginPage() {
           <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
               <Label htmlFor="token" className="text-sm text-muted-foreground">
-                管理员令牌
+                {t('title')}
               </Label>
               <div className="relative">
                 <LockIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
@@ -101,7 +102,7 @@ export default function AdminLoginPage() {
                   type="password"
                   value={token}
                   onChange={(e) => setToken(e.target.value)}
-                  placeholder="请输入管理员令牌"
+                  placeholder={t('placeholder')}
                   className={cn(
                     'pl-10 h-11 bg-white/[0.03] border-white/[0.08]',
                     'focus:border-[#ff2d78]/40 focus:ring-2 focus:ring-[#ff2d78]/10',
@@ -139,10 +140,10 @@ export default function AdminLoginPage() {
               {loading ? (
                 <span className="flex items-center gap-2">
                   <span className="size-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  验证中...
+                  {t('validating')}
                 </span>
               ) : (
-                '登录管理后台'
+                t('submit')
               )}
             </Button>
           </form>

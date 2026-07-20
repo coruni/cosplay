@@ -15,7 +15,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { useLocale } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { resolveImageUrl } from '@/lib/s3';
 
 interface AdminUser {
@@ -40,6 +40,7 @@ interface Stats {
 export default function AdminUsersPage() {
   const router = useRouter();
   const locale = useLocale();
+  const t = useTranslations('admin.users');
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -101,7 +102,7 @@ export default function AdminUsersPage() {
           </div>
           <div>
             <p className="text-2xl font-bold text-foreground tabular-nums">{stats.totalUsers}</p>
-            <p className="text-sm text-muted-foreground">注册用户</p>
+            <p className="text-sm text-muted-foreground">{t('registeredUsers')}</p>
           </div>
         </div>
         <div className="rounded-xl p-5 bg-[#262633] border border-white/[0.06] flex items-center gap-4">
@@ -110,7 +111,7 @@ export default function AdminUsersPage() {
           </div>
           <div>
             <p className="text-2xl font-bold text-foreground tabular-nums">{stats.totalSubscribed}</p>
-            <p className="text-sm text-muted-foreground">会员用户</p>
+            <p className="text-sm text-muted-foreground">{t('memberUsers')}</p>
           </div>
         </div>
       </div>
@@ -120,7 +121,7 @@ export default function AdminUsersPage() {
         <div className="relative flex-1 max-w-sm">
           <SearchIcon className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
-            placeholder="搜索邮箱 / 用户名 / 昵称..."
+            placeholder={t('searchPlaceholder')}
             value={query}
             onChange={(e) => { setQuery(e.target.value); setPage(1); }}
             className="pl-9 bg-white/[0.03] border-white/[0.08]"
@@ -129,9 +130,9 @@ export default function AdminUsersPage() {
         </div>
         <div className="flex items-center gap-2">
           {[
-            { value: '', label: '全部' },
-            { value: 'subscribed', label: '会员' },
-            { value: 'free', label: '非会员' },
+            { value: '', label: t('filterAll') },
+            { value: 'subscribed', label: t('filterMember') },
+            { value: 'free', label: t('filterFree') },
           ].map((f) => (
             <button
               key={f.value}
@@ -155,11 +156,11 @@ export default function AdminUsersPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/[0.06] bg-white/[0.01]">
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">用户</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground hidden md:table-cell">会员</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground hidden lg:table-cell">配额</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground hidden sm:table-cell">注册时间</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground">操作</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">{t('colUser')}</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground hidden md:table-cell">{t('colMember')}</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground hidden lg:table-cell">{t('colQuota')}</th>
+                <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground hidden sm:table-cell">{t('colCreatedAt')}</th>
+                <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground">{t('colActions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -173,7 +174,7 @@ export default function AdminUsersPage() {
                 <tr>
                   <td colSpan={5} className="px-4 py-12 text-center text-muted-foreground">
                     <UsersIcon className="size-8 mx-auto mb-2 opacity-40" />
-                    暂无用户
+                    {t('noData')}
                   </td>
                 </tr>
               ) : (
@@ -207,10 +208,10 @@ export default function AdminUsersPage() {
                       {u.isSubscribed ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-[#a855f7]/10 text-[#a855f7] border border-[#a855f7]/20">
                           <CrownIcon className="size-3" />
-                          会员
+                          {t('member')}
                           {u.subscriptionEndAt && (
                             <span className="text-[10px] opacity-70">
-                              {new Date(u.subscriptionEndAt).toLocaleDateString('zh-CN')}
+                              {new Date(u.subscriptionEndAt).toLocaleDateString(locale === 'en' ? 'en-US' : locale === 'ja' ? 'ja-JP' : 'zh-CN')}
                             </span>
                           )}
                         </span>
@@ -235,7 +236,7 @@ export default function AdminUsersPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3 text-right text-xs text-muted-foreground hidden sm:table-cell">
-                      {new Date(u.createdAt).toLocaleDateString('zh-CN')}
+                      {new Date(u.createdAt).toLocaleDateString(locale === 'en' ? 'en-US' : locale === 'ja' ? 'ja-JP' : 'zh-CN')}
                     </td>
                     <td className="px-4 py-3 text-right">
                       <div className="flex items-center justify-end gap-1">
@@ -243,8 +244,8 @@ export default function AdminUsersPage() {
                           onClick={() => handleAction(u.id, 'resetQuota')}
                           disabled={busyId === u.id || u.quotaUsed === 0}
                           className="size-9 flex items-center justify-center rounded-lg text-muted-foreground hover:text-[#00d4ff] hover:bg-[#00d4ff]/10 transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                          aria-label="重置配额"
-                          title="重置配额"
+                          aria-label={t('resetQuota')}
+                          title={t('resetQuota')}
                         >
                           {busyId === u.id ? (
                             <Loader2Icon className="size-4 animate-spin" />
@@ -257,8 +258,8 @@ export default function AdminUsersPage() {
                             onClick={() => handleAction(u.id, 'cancelSub')}
                             disabled={busyId === u.id}
                             className="size-9 flex items-center justify-center rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors disabled:opacity-30"
-                            aria-label="取消会员"
-                            title="取消会员"
+                            aria-label={t('cancelMember')}
+                            title={t('cancelMember')}
                           >
                             <UserXIcon className="size-4" />
                           </button>
@@ -276,7 +277,7 @@ export default function AdminUsersPage() {
         {totalPages > 1 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-white/[0.06]">
             <span className="text-xs text-muted-foreground">
-              第 {page} / {totalPages} 页
+              {t('page', { page, total: totalPages })}
             </span>
             <div className="flex gap-1">
               <Button

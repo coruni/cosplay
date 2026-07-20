@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useLocale } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { CheckIcon, ChevronDownIcon, XIcon, TagIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -25,6 +25,7 @@ interface CategorySelectProps {
  */
 export function CategorySelect({ value, onChange }: CategorySelectProps) {
   const locale = useLocale();
+  const t = useTranslations('admin.categorySelect');
   const [options, setOptions] = useState<CategoryOption[]>([]);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
@@ -86,7 +87,7 @@ export function CategorySelect({ value, onChange }: CategorySelectProps) {
         >
           <span className="flex items-center gap-2 text-muted-foreground">
             <TagIcon className="size-4" />
-            {value.length ? `已选 ${value.length} 个分类` : '点击选择分类'}
+            {value.length ? t('selected', { count: value.length }) : t('selectPrompt')}
           </span>
           <ChevronDownIcon
             className={cn(
@@ -103,14 +104,14 @@ export function CategorySelect({ value, onChange }: CategorySelectProps) {
                 autoFocus
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
-                placeholder="搜索分类..."
+                placeholder={t('searchPlaceholder')}
                 className="w-full h-9 px-3 rounded-lg bg-white/[0.03] border border-white/[0.08] text-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-[#00d4ff]/40"
               />
             </div>
             <div className="max-h-60 overflow-y-auto scrollbar-hide py-1">
               {filtered.length === 0 ? (
                 <p className="px-3 py-4 text-center text-xs text-muted-foreground">
-                  无匹配分类
+                  {t('noMatch')}
                 </p>
               ) : (
                 filtered.map((c) => {
@@ -140,7 +141,7 @@ export function CategorySelect({ value, onChange }: CategorySelectProps) {
               )}
             </div>
             <div className="px-3 py-2 border-t border-white/[0.06] text-xs text-muted-foreground">
-              共 {options.length} 个分类 · 选择后保存即生效（分类在「分类管理」中维护）
+              {t('totalCount', { count: options.length })}
             </div>
           </div>
         )}
@@ -162,7 +163,7 @@ export function CategorySelect({ value, onChange }: CategorySelectProps) {
                   type="button"
                   onClick={() => remove(slug)}
                   className="size-4 flex items-center justify-center rounded-full hover:bg-[#ff2d78]/20 transition-colors"
-                  aria-label={`移除 ${label}`}
+                  aria-label={t('removeAria', { name: label })}
                 >
                   <XIcon className="size-3" />
                 </button>

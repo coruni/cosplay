@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/db';
+import { getLocale, getTranslations } from 'next-intl/server';
 import {
   LayoutDashboardIcon,
   ImageIcon,
@@ -15,6 +16,9 @@ import { resolveImageUrl } from '@/lib/s3';
 export const dynamic = 'force-dynamic';
 
 export default async function AdminDashboardPage() {
+  const locale = await getLocale();
+  const t = await getTranslations({ locale, namespace: 'admin.dashboard' });
+
   const [
     galleryCount,
     orderStats,
@@ -61,49 +65,16 @@ export default async function AdminDashboardPage() {
   const totalOrders = orderStats._count;
 
   const stats = [
-    {
-      label: '图包总数',
-      value: galleryCount,
-      icon: ImageIcon,
-      color: '#00d4ff',
-      bg: 'rgba(0,212,255,0.1)',
-    },
-    {
-      label: '订单总数',
-      value: totalOrders,
-      icon: CreditCardIcon,
-      color: '#a855f7',
-      bg: 'rgba(168,85,247,0.1)',
-    },
-    {
-      label: '总收入',
-      value: `¥${totalRevenue.toFixed(2)}`,
-      icon: DollarSignIcon,
-      color: '#22c55e',
-      bg: 'rgba(34,197,94,0.1)',
-    },
-    {
-      label: '总浏览',
-      value: topGalleries.reduce((s, g) => s + g.viewCount, 0).toLocaleString(),
-      icon: EyeIcon,
-      color: '#ff2d78',
-      bg: 'rgba(255,45,120,0.1)',
-    },
-    {
-      label: '注册用户',
-      value: userCount,
-      icon: UsersIcon,
-      color: '#00d4ff',
-      bg: 'rgba(0,212,255,0.1)',
-    },
-    {
-      label: '会员用户',
-      value: subscribedCount,
-      icon: CrownIcon,
-      color: '#a855f7',
-      bg: 'rgba(168,85,247,0.1)',
-    },
+    { label: t('totalGalleries'), value: galleryCount, icon: ImageIcon, color: '#00d4ff', bg: 'rgba(0,212,255,0.1)' },
+    { label: t('totalOrders'), value: totalOrders, icon: CreditCardIcon, color: '#a855f7', bg: 'rgba(168,85,247,0.1)' },
+    { label: t('totalRevenue'), value: `¥${totalRevenue.toFixed(2)}`, icon: DollarSignIcon, color: '#22c55e', bg: 'rgba(34,197,94,0.1)' },
+    { label: t('totalViews'), value: topGalleries.reduce((s, g) => s + g.viewCount, 0).toLocaleString(), icon: EyeIcon, color: '#ff2d78', bg: 'rgba(255,45,120,0.1)' },
+    { label: t('registeredUsers'), value: userCount, icon: UsersIcon, color: '#00d4ff', bg: 'rgba(0,212,255,0.1)' },
+    { label: t('memberUsers'), value: subscribedCount, icon: CrownIcon, color: '#a855f7', bg: 'rgba(168,85,247,0.1)' },
   ];
+
+  const statusOf = (status: string) =>
+    status === 'paid' ? t('statusPaid') : status === 'failed' ? t('statusFailed') : t('statusPending');
 
   return (
     <div className="space-y-6">
@@ -143,24 +114,24 @@ export default async function AdminDashboardPage() {
           <div className="px-5 py-4 border-b border-white/[0.06]">
             <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
               <CreditCardIcon className="size-4 text-[#a855f7]" />
-              最近订单
+              {t('recentOrders')}
             </h2>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-white/[0.04]">
-                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground">订单号</th>
-                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground">图包</th>
-                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground">金额</th>
-                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground">状态</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground">{t('colOrder')}</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground">{t('colGallery')}</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground">{t('colAmount')}</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground">{t('colStatus')}</th>
                 </tr>
               </thead>
               <tbody>
                 {recentOrders.length === 0 ? (
                   <tr>
                     <td colSpan={4} className="px-5 py-8 text-center text-muted-foreground">
-                      暂无订单
+                      {t('noData')}
                     </td>
                   </tr>
                 ) : (
@@ -180,7 +151,7 @@ export default async function AdminDashboardPage() {
                               : 'bg-amber-500/10 text-amber-400'
                           )}
                         >
-                          {order.status === 'paid' ? '已支付' : order.status === 'failed' ? '失败' : '待支付'}
+                          {statusOf(order.status)}
                         </span>
                       </td>
                     </tr>
@@ -196,7 +167,7 @@ export default async function AdminDashboardPage() {
           <div className="px-5 py-4 border-b border-white/[0.06]">
             <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
               <EyeIcon className="size-4 text-[#ff2d78]" />
-              热门图包
+              {t('popularGalleries')}
             </h2>
           </div>
           <div className="overflow-x-auto">
@@ -204,9 +175,9 @@ export default async function AdminDashboardPage() {
               <thead>
                 <tr className="border-b border-white/[0.04]">
                   <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground">#</th>
-                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground">图包</th>
-                  <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground">浏览</th>
-                  <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground">下载</th>
+                  <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground">{t('colGallery')}</th>
+                  <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground">{t('colViews')}</th>
+                  <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground">{t('colDownloads')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -244,24 +215,24 @@ export default async function AdminDashboardPage() {
         <div className="px-5 py-4 border-b border-white/[0.06]">
           <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
             <UsersIcon className="size-4 text-[#00d4ff]" />
-            最近注册用户
+            {t('recentUsers')}
           </h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/[0.04]">
-                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground">用户</th>
-                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground hidden sm:table-cell">邮箱</th>
-                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground">会员</th>
-                <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground">注册时间</th>
+                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground">{t('colUser')}</th>
+                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground hidden sm:table-cell">{t('colEmail')}</th>
+                <th className="text-left px-5 py-3 text-xs font-medium text-muted-foreground">{t('colMember')}</th>
+                <th className="text-right px-5 py-3 text-xs font-medium text-muted-foreground">{t('colCreatedAt')}</th>
               </tr>
             </thead>
             <tbody>
               {recentUsers.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="px-5 py-8 text-center text-muted-foreground">
-                    暂无用户
+                    {t('noData')}
                   </td>
                 </tr>
               ) : (
@@ -291,14 +262,14 @@ export default async function AdminDashboardPage() {
                       {u.isSubscribed ? (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-[#a855f7]/10 text-[#a855f7] border border-[#a855f7]/20">
                           <CrownIcon className="size-3" />
-                          会员
+                          {t('colMember')}
                         </span>
                       ) : (
                         <span className="text-xs text-muted-foreground">—</span>
                       )}
                     </td>
                     <td className="px-5 py-3 text-right text-xs text-muted-foreground">
-                      {new Date(u.createdAt).toLocaleString('zh-CN')}
+                      {new Date(u.createdAt).toLocaleString(locale === 'en' ? 'en-US' : locale === 'ja' ? 'ja-JP' : 'zh-CN')}
                     </td>
                   </tr>
                 ))

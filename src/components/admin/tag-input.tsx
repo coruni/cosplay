@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, type KeyboardEvent } from 'react';
+import { useTranslations } from 'next-intl';
 import { XIcon } from 'lucide-react';
 import { Label } from '@/components/ui/label';
 
@@ -12,20 +13,21 @@ interface TagInputProps {
 }
 
 export function TagInput({ value, onChange, placeholder, label }: TagInputProps) {
+  const t = useTranslations('admin.tagInput');
   const [draft, setDraft] = useState('');
 
   const add = (raw: string) => {
-    const t = raw.trim();
-    if (!t) return;
-    if (value.some((v) => v.toLowerCase() === t.toLowerCase())) {
+    const tag = raw.trim();
+    if (!tag) return;
+    if (value.some((v) => v.toLowerCase() === tag.toLowerCase())) {
       setDraft('');
       return;
     }
-    onChange([...value, t]);
+    onChange([...value, tag]);
     setDraft('');
   };
 
-  const remove = (t: string) => onChange(value.filter((x) => x !== t));
+  const remove = (tag: string) => onChange(value.filter((x) => x !== tag));
 
   const onKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' || e.key === ',') {
@@ -40,17 +42,17 @@ export function TagInput({ value, onChange, placeholder, label }: TagInputProps)
     <div className="space-y-1.5">
       {label && <Label className="text-xs text-muted-foreground">{label}</Label>}
       <div className="flex flex-wrap gap-1.5 rounded-lg bg-white/[0.03] border border-white/[0.08] p-2 min-h-[40px] items-center focus-within:border-[#ff2d78]/40 transition-colors">
-        {value.map((t) => (
+        {value.map((tag) => (
           <span
-            key={t}
+            key={tag}
             className="inline-flex items-center gap-1 rounded-md bg-[#ff2d78]/15 text-[#ff8ab4] text-xs px-2 py-1"
           >
-            {t}
+            {tag}
             <button
               type="button"
-              onClick={() => remove(t)}
+              onClick={() => remove(tag)}
               className="hover:text-white transition-colors"
-              aria-label={`移除 ${t}`}
+              aria-label={t('removeAria', { name: tag })}
             >
               <XIcon className="size-3" />
             </button>

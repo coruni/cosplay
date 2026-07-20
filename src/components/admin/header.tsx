@@ -1,15 +1,17 @@
 'use client';
 
 import { usePathname } from 'next/navigation';
-import { useLocale } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import { MenuIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-const titleMap: Record<string, string> = {
-  '/admin': '仪表盘',
-  '/admin/galleries': '图包管理',
-  '/admin/orders': '订单管理',
-  '/admin/users': '用户管理',
+// Maps a locale-stripped pathname to a nav key for title lookup.
+const pathToNavKey: Record<string, 'dashboard' | 'galleries' | 'categories' | 'orders' | 'users'> = {
+  '/admin': 'dashboard',
+  '/admin/galleries': 'galleries',
+  '/admin/categories': 'categories',
+  '/admin/orders': 'orders',
+  '/admin/users': 'users',
 };
 
 interface AdminHeaderProps {
@@ -19,10 +21,13 @@ interface AdminHeaderProps {
 export function AdminHeader({ onMenuClick }: AdminHeaderProps) {
   const pathname = usePathname();
   const locale = useLocale();
+  const tNav = useTranslations('admin.nav');
+  const tCommon = useTranslations('admin.common');
 
   // Derive the page title from the current path (strip the locale prefix).
   const withoutLocale = pathname.replace(`/${locale}`, '') || '/admin';
-  const title = titleMap[withoutLocale] || '仪表盘';
+  const navKey = pathToNavKey[withoutLocale] || 'dashboard';
+  const title = tNav(navKey);
 
   return (
     <header
@@ -37,7 +42,7 @@ export function AdminHeader({ onMenuClick }: AdminHeaderProps) {
       <button
         onClick={onMenuClick}
         className="lg:hidden flex items-center justify-center size-10 rounded-lg text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition-colors"
-        aria-label="打开菜单"
+        aria-label={tCommon('openMenu')}
         style={{ minHeight: 44, minWidth: 44 }}
       >
         <MenuIcon className="size-5" />

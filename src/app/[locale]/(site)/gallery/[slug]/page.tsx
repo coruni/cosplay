@@ -218,8 +218,8 @@ export default async function GalleryDetailPage({ params }: Props) {
                 {gallery.isPremium && gallery.price > 0
                   ? `¥${gallery.price}`
                   : gallery.isPremium
-                  ? '会员专享'
-                  : 'Free'}
+                  ? t('membersOnly')
+                  : t('free')}
               </span>
             </div>
 

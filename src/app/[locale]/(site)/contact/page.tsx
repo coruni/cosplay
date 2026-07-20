@@ -20,37 +20,27 @@ export default async function ContactPage({ params }: Props) {
     notFound();
   }
   setRequestLocale(locale);
-  const t = await getTranslations({ locale, namespace: 'footer' });
-
-  const channels = [
-    {
-      icon: MailIcon,
-      title: 'Email',
-      value: 'support@coshub.example',
-      hint: '商务合作与内容申诉请发送至该邮箱。',
-    },
-    {
-      icon: MessageCircleIcon,
-      title: '社区互助',
-      value: 'CosHub Discord',
-      hint: '加入社区与其他 Coser 交流、反馈问题。',
-    },
-    {
-      icon: SendIcon,
-      title: '社交媒体',
-      value: '@CosHub',
-      hint: '关注我们获取最新图包与活动情报。',
-    },
-  ];
+  const tFooter = await getTranslations({ locale, namespace: 'footer' });
+  const t = await getTranslations({ locale, namespace: 'contact' });
+  const channelTitles = t.raw('channels') as Array<{ title: string; hint: string }>;
+  // Static contact values are not localized (email addresses, handles).
+  const channelValues = ['mineimc@outlook.com', 'CosHub Discord', '@CosHub'];
+  const icons = [MailIcon, MessageCircleIcon, SendIcon];
+  const channels = channelTitles.map((c, i) => ({
+    icon: icons[i],
+    title: c.title,
+    value: channelValues[i],
+    hint: c.hint,
+  }));
 
   return (
     <div className="min-h-screen px-4 sm:px-6 lg:px-8 py-16 sm:py-24">
       <div className="max-w-3xl mx-auto">
         <h1 className="text-3xl sm:text-4xl font-bold text-foreground mb-4">
-          {t('contact')}
+          {tFooter('contact')}
         </h1>
         <p className="text-sm text-muted-foreground mb-10 leading-relaxed">
-          我们重视每一位用户的反馈，欢迎通过以下任意渠道与我们联系。
+          {t('subtitle')}
         </p>
         <div className="space-y-4">
           {channels.map((c) => (

@@ -15,7 +15,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { useLocale } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 
 interface PaymentOrder {
   id: string;
@@ -35,6 +35,7 @@ interface Stats {
 
 export default function AdminOrdersPage() {
   const router = useRouter();
+  const t = useTranslations('admin.orders');
   const [orders, setOrders] = useState<PaymentOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [page, setPage] = useState(1);
@@ -66,17 +67,17 @@ export default function AdminOrdersPage() {
     const config: Record<string, { icon: React.ReactNode; label: string; className: string }> = {
       paid: {
         icon: <CheckCircleIcon className="size-3" />,
-        label: '已支付',
+        label: t('filterPaid'),
         className: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
       },
       pending: {
         icon: <ClockIcon className="size-3" />,
-        label: '待支付',
+        label: t('filterPending'),
         className: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
       },
       failed: {
         icon: <XCircleIcon className="size-3" />,
-        label: '失败',
+        label: t('filterFailed'),
         className: 'bg-red-500/10 text-red-400 border-red-500/20',
       },
     };
@@ -99,7 +100,7 @@ export default function AdminOrdersPage() {
           </div>
           <div>
             <p className="text-2xl font-bold text-foreground">¥{stats.totalRevenue.toFixed(2)}</p>
-            <p className="text-sm text-muted-foreground">总收入</p>
+            <p className="text-sm text-muted-foreground">{t('totalRevenue')}</p>
           </div>
         </div>
         <div className="rounded-xl p-5 bg-[#262633] border border-white/[0.06] flex items-center gap-4">
@@ -108,7 +109,7 @@ export default function AdminOrdersPage() {
           </div>
           <div>
             <p className="text-2xl font-bold text-foreground">{stats.totalPaid}</p>
-            <p className="text-sm text-muted-foreground">已支付订单</p>
+            <p className="text-sm text-muted-foreground">{t('paidOrders')}</p>
           </div>
         </div>
       </div>
@@ -117,10 +118,10 @@ export default function AdminOrdersPage() {
       <div className="flex items-center gap-2">
         <FilterIcon className="size-4 text-muted-foreground" />
         {[
-          { value: '', label: '全部' },
-          { value: 'paid', label: '已支付' },
-          { value: 'pending', label: '待支付' },
-          { value: 'failed', label: '失败' },
+          { value: '', label: t('filterAll') },
+          { value: 'paid', label: t('filterPaid') },
+          { value: 'pending', label: t('filterPending') },
+          { value: 'failed', label: t('filterFailed') },
         ].map((f) => (
           <button
             key={f.value}
@@ -143,11 +144,11 @@ export default function AdminOrdersPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/[0.06] bg-white/[0.01]">
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">订单号</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">图包</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground">金额</th>
-                <th className="text-center px-4 py-3 text-xs font-medium text-muted-foreground">状态</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground hidden md:table-cell">时间</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">{t('colOrder')}</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">{t('colGallery')}</th>
+                <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground">{t('colAmount')}</th>
+                <th className="text-center px-4 py-3 text-xs font-medium text-muted-foreground">{t('colStatus')}</th>
+                <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground hidden md:table-cell">{t('colTime')}</th>
               </tr>
             </thead>
             <tbody>
@@ -161,7 +162,7 @@ export default function AdminOrdersPage() {
                 <tr>
                   <td colSpan={5} className="px-4 py-12 text-center text-muted-foreground">
                     <CreditCardIcon className="size-8 mx-auto mb-2 opacity-40" />
-                    暂无订单
+                    {t('noData')}
                   </td>
                 </tr>
               ) : (
@@ -179,7 +180,7 @@ export default function AdminOrdersPage() {
                     </td>
                     <td className="px-4 py-3 text-center">{statusBadge(order.status)}</td>
                     <td className="px-4 py-3 text-right text-xs text-muted-foreground hidden md:table-cell">
-                      {new Date(order.createdAt).toLocaleString('zh-CN')}
+                      {new Date(order.createdAt).toLocaleString(locale === 'en' ? 'en-US' : locale === 'ja' ? 'ja-JP' : 'zh-CN')}
                     </td>
                   </tr>
                 ))
@@ -192,7 +193,7 @@ export default function AdminOrdersPage() {
         {totalPages > 1 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-white/[0.06]">
             <span className="text-xs text-muted-foreground">
-              第 {page} / {totalPages} 页
+              {t('page', { page, total: totalPages })}
             </span>
             <div className="flex gap-1">
               <Button

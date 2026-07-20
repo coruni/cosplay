@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { useLocale } from 'next-intl';
+import { useLocale, useTranslations } from 'next-intl';
 import {
   PlusIcon,
   PencilIcon,
@@ -51,6 +51,8 @@ const emptyForm: CategoryForm = {
 export default function AdminCategoriesPage() {
   const router = useRouter();
   const locale = useLocale();
+  const t = useTranslations('admin.categories');
+  const tCommon = useTranslations('admin.common');
   const [categories, setCategories] = useState<CategoryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -106,10 +108,10 @@ export default function AdminCategoriesPage() {
   const validate = (f: CategoryForm): Record<string, string> => {
     const e: Record<string, string> = {};
     if (!/^[a-z0-9-]+$/.test(f.slug.trim())) {
-      e.slug = 'slug 只能包含小写字母、数字和连字符';
+      e.slug = t('errorSlug');
     }
     if (!f.nameZh.trim() && !f.nameEn.trim() && !f.nameJa.trim()) {
-      e.nameZh = '请至少填写一种语言的分类名称';
+      e.nameZh = t('errorName');
     }
     return e;
   };
@@ -145,7 +147,7 @@ export default function AdminCategoriesPage() {
         fetchCategories();
       } else {
         const data = await res.json().catch(() => ({}));
-        setErrors({ form: data.error || '保存失败' });
+        setErrors({ form: data.error || t('saveFailed') });
       }
     } catch (e) {
       console.error('Save category failed:', e);
@@ -187,14 +189,14 @@ export default function AdminCategoriesPage() {
         >
           <ArrowLeftIcon className="size-4" />
         </Button>
-        <h1 className="text-xl font-semibold">分类管理</h1>
+        <h1 className="text-xl font-semibold">{t('title')}</h1>
         <Button
           onClick={openCreate}
           className="ml-auto bg-[#ff2d78] hover:bg-[#ff2d78]/90 text-white"
           style={{ boxShadow: '0 0 16px rgba(255,45,120,0.3)' }}
         >
           <PlusIcon className="size-4 mr-2" />
-          新增分类
+          {t('create')}
         </Button>
       </div>
 
@@ -203,11 +205,11 @@ export default function AdminCategoriesPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/[0.06] bg-white/[0.01]">
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">图标</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">名称</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">slug</th>
-                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">排序</th>
-                <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground">操作</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">{t('colIcon')}</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">{t('colName')}</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">{t('colSlug')}</th>
+                <th className="text-left px-4 py-3 text-xs font-medium text-muted-foreground">{t('colSort')}</th>
+                <th className="text-right px-4 py-3 text-xs font-medium text-muted-foreground">{t('colActions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -220,7 +222,7 @@ export default function AdminCategoriesPage() {
               ) : categories.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-12 text-center text-muted-foreground">
-                    暂无分类
+                    {t('noData')}
                   </td>
                 </tr>
               ) : (
@@ -247,14 +249,14 @@ export default function AdminCategoriesPage() {
                         <button
                           onClick={() => openEdit(c)}
                           className="size-9 flex items-center justify-center rounded-lg text-muted-foreground hover:text-[#00d4ff] hover:bg-[#00d4ff]/10 transition-colors"
-                          aria-label="编辑"
+                          aria-label={t('edit')}
                         >
                           <PencilIcon className="size-4" />
                         </button>
                         <button
                           onClick={() => setDeleteConfirm(c.id)}
                           className="size-9 flex items-center justify-center rounded-lg text-muted-foreground hover:text-red-400 hover:bg-red-500/10 transition-colors"
-                          aria-label="删除"
+                          aria-label={t('delete')}
                         >
                           <Trash2Icon className="size-4" />
                         </button>
@@ -273,28 +275,28 @@ export default function AdminCategoriesPage() {
         <DialogContent className="bg-[#262633] border-white/[0.08] sm:max-w-lg w-[calc(100vw-2rem)] max-h-[92vh] overflow-hidden scrollbar-hide">
           <DialogHeader className="shrink-0">
             <DialogTitle className="text-lg" style={{ fontFamily: 'Orbitron, sans-serif' }}>
-              {editing ? '编辑分类' : '新增分类'}
+              {editing ? t('editTitle') : t('create')}
             </DialogTitle>
           </DialogHeader>
 
           <div className="flex-1 min-h-0 overflow-y-auto scrollbar-hide space-y-4 py-2 pr-1">
             <div className="space-y-1.5">
-              <Label className="text-xs text-muted-foreground">slug（URL/标识，小写字母、数字、连字符）</Label>
+              <Label className="text-xs text-muted-foreground">{t('fieldSlug')}</Label>
               <Input
                 value={form.slug}
                 onChange={(e) => updateForm('slug', e.target.value)}
                 className="bg-white/[0.03] border-white/[0.08] font-mono text-sm"
                 style={{ minHeight: 40 }}
-                placeholder="如：game"
+                placeholder={t('fieldSlugPlaceholder')}
               />
               {errors.slug && <p className="text-xs text-red-400">{errors.slug}</p>}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {([
-                { key: 'nameZh', label: '名称（中文）' },
-                { key: 'nameEn', label: '名称（英文）' },
-                { key: 'nameJa', label: '名称（日文）' },
+                { key: 'nameZh', label: t('fieldNameZh') },
+                { key: 'nameEn', label: t('fieldNameEn') },
+                { key: 'nameJa', label: t('fieldNameJa') },
               ] as const).map(({ key, label }) => (
                 <div key={key} className="space-y-1.5">
                   <Label className="text-xs text-muted-foreground">{label}</Label>
@@ -311,7 +313,7 @@ export default function AdminCategoriesPage() {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">图标（emoji）</Label>
+                <Label className="text-xs text-muted-foreground">{t('fieldIcon')}</Label>
                 <Input
                   value={form.icon}
                   onChange={(e) => updateForm('icon', e.target.value)}
@@ -321,7 +323,7 @@ export default function AdminCategoriesPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">排序（数字越小越靠前）</Label>
+                <Label className="text-xs text-muted-foreground">{t('fieldSort')}</Label>
                 <Input
                   type="number"
                   value={form.sortOrder}
@@ -343,7 +345,7 @@ export default function AdminCategoriesPage() {
               onClick={() => setDialogOpen(false)}
               className="text-muted-foreground"
             >
-              取消
+              {tCommon('cancel')}
             </Button>
             <Button
               onClick={handleSave}
@@ -354,7 +356,7 @@ export default function AdminCategoriesPage() {
               {saving ? (
                 <Loader2Icon className="size-4 animate-spin mr-2" />
               ) : null}
-              {editing ? '保存修改' : '创建分类'}
+              {editing ? t('saveEdit') : t('saveCreate')}
             </Button>
           </div>
         </DialogContent>
@@ -364,10 +366,10 @@ export default function AdminCategoriesPage() {
       <Dialog open={!!deleteConfirm} onOpenChange={() => setDeleteConfirm(null)}>
         <DialogContent className="bg-[#262633] border-white/[0.08] max-w-sm">
           <DialogHeader>
-            <DialogTitle className="text-lg">确认删除</DialogTitle>
+            <DialogTitle className="text-lg">{t('confirmDeleteTitle')}</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            此操作不可撤销。确定要删除这个分类吗？已使用该分类的图包不会被删除，仅失去分类关联。
+            {t('confirmDeleteDesc')}
           </p>
           <div className="flex justify-end gap-3 pt-2">
             <Button
@@ -375,13 +377,13 @@ export default function AdminCategoriesPage() {
               onClick={() => setDeleteConfirm(null)}
               className="text-muted-foreground"
             >
-              取消
+              {tCommon('cancel')}
             </Button>
             <Button
               onClick={() => deleteConfirm && handleDelete(deleteConfirm)}
               className="bg-red-500 hover:bg-red-600 text-white"
             >
-              确认删除
+              {t('confirmDelete')}
             </Button>
           </div>
         </DialogContent>
