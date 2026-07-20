@@ -44,3 +44,10 @@ next-env.d.ts
 
 # workbuddy project memory (local-only, not source)
 .workbuddy/
+
+# python (img-uploader tool)
+__pycache__/
+*.pyc
+*.pyo
+tools/img-uploader/dist/
+tools/img-uploader/build/
