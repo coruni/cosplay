@@ -37,6 +37,41 @@ class AppConfig:
         # 上传后自动发布
         self.auto_publish = True
 
+        # 解压密码列表（自动尝试）
+        self.archive_passwords: list[str] = []
+
+        # Telegram Bot (Telethon / MTProto)
+        self.tg_api_id = ''
+        self.tg_api_hash = ''
+        self.tg_bot_token = ''
+        self.tg_session_name = 'coshub_publisher'  # session 文件名（无扩展名）
+        self.tg_allowed_chat_ids: list[int] = []
+        self.tg_enabled = False  # GUI 启动时是否自动启动 bot
+        self.tg_default_rating = 'sfw'  # 自动发布的默认分级
+        self.tg_default_price = 0
+        self.tg_default_premium = False
+        # 代理（telethon 连不上 Telegram 时用，国内必填）
+        self.tg_proxy_type = ''  # 'socks5' / 'http' / ''
+        self.tg_proxy_host = ''
+        self.tg_proxy_port = 0
+        self.tg_proxy_username = ''
+        self.tg_proxy_password = ''
+
+    def build_tg_proxy(self):
+        """构造 telethon 接受的 proxy 元组，未配置返回 None。"""
+        if not self.tg_proxy_type or not self.tg_proxy_host or not self.tg_proxy_port:
+            return None
+        if self.tg_proxy_username or self.tg_proxy_password:
+            return (
+                self.tg_proxy_type,
+                self.tg_proxy_host,
+                int(self.tg_proxy_port),
+                True,
+                self.tg_proxy_username,
+                self.tg_proxy_password,
+            )
+        return (self.tg_proxy_type, self.tg_proxy_host, int(self.tg_proxy_port))
+
     def load(self):
         if CONFIG_FILE.exists():
             try:

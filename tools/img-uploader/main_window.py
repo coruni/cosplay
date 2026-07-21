@@ -8,11 +8,13 @@ from PyQt5.QtWidgets import (
     QLineEdit, QCheckBox, QPlainTextEdit, QSplitter, QComboBox,
     QSizePolicy, QScrollArea, QDialog, QCompleter,
 )
-from PyQt5.QtCore import Qt, QSize, QStringListModel
+from PyQt5.QtCore import Qt, QSize, QStringListModel, QThread, pyqtSignal
 from PyQt5.QtGui import QFont, QColor, QTextCursor, QDragEnterEvent, QDropEvent
 
 from config import AppConfig
-from gallery_publisher import GalleryPayload, generate_slug, fetch_categories, fetch_cosplayers
+from gallery_publisher import (
+    GalleryPayload, generate_slug, auto_slug, fetch_categories, fetch_cosplayers,
+)
 from publish_worker import PublishWorker
 from settings_dialog import SettingsDialog
 from coser_list_dialog import CoserListDialog
@@ -38,6 +40,24 @@ LOG_COLORS = {
     'error': '#ef4444',
     'success': '#22c55e',
 }
+
+
+class _SlugWorker(QThread):
+    """后台调用 auto_slug（含网络翻译），完成后发信号回主线程。"""
+    slug_ready = pyqtSignal(str, str)  # slug, en_title
+
+    def __init__(self, title_zh: str, title_en: str, title_ja: str = '', parent=None):
+        super().__init__(parent)
+        self._zh = title_zh
+        self._en = title_en
+        self._ja = title_ja
+
+    def run(self):
+        try:
+            slug, en_title = auto_slug(self._zh, self._en, self._ja)
+            self.slug_ready.emit(slug, en_title)
+        except Exception:
+            self.slug_ready.emit('', '')
 
 
 class DropFrame(QFrame):
@@ -83,6 +103,9 @@ class MainWindow(QMainWindow):
         self.categories: list[dict] = []
         self.cosplayers: list[dict] = []
         self._coser_names: list[str] = []
+        self._slug_worker: _SlugWorker | None = None
+        self._bot = None  # TgBot
+        self._bot_handler = None  # BotHandler
 
         self.setWindowTitle('CosHub Publisher')
         self.resize(960, 760)
@@ -94,6 +117,10 @@ class MainWindow(QMainWindow):
         self._refresh_status()
         self._load_categories()
         self._load_cosplayers()
+
+        # 根据配置自动启动 bot
+        if self.config.tg_enabled and self.config.tg_bot_token:
+            self._start_bot()
 
     # ─────────────────── UI 构建 ───────────────────
 
@@ -171,6 +198,11 @@ class MainWindow(QMainWindow):
         self.stop_btn.clicked.connect(self._on_stop)
         self.stop_btn.setEnabled(False)
         lay.addWidget(self.stop_btn)
+
+        self.bot_btn = self._tb_btn('Bot: 关')
+        self.bot_btn.setObjectName('ghostBtn')
+        self.bot_btn.clicked.connect(self._on_toggle_bot)
+        lay.addWidget(self.bot_btn)
 
         self.settings_btn = self._tb_btn('设置')
         self.settings_btn.clicked.connect(self._on_settings)
@@ -528,10 +560,8 @@ class MainWindow(QMainWindow):
         if not self.character_edit.text().strip() and parsed.character:
             self.character_edit.setText(parsed.character)
         if not self.slug_edit.text().strip():
-            # 中文 slug 会失败，仅在能转出 ASCII 时才自动填
-            slug = generate_slug(parsed.clean_title or path.stem)
-            if slug and slug != 'gallery':
-                self.slug_edit.setText(slug)
+            # 异步：中文标题 → 翻译成英文 → slugify（与后台 autoSlug 一致）
+            self._request_auto_slug()
 
         self._refresh_status()
 
@@ -543,11 +573,36 @@ class MainWindow(QMainWindow):
         if f:
             self._on_archive_dropped(Path(f))
 
-    def _on_gen_slug(self):
-        text = self.title_zh_edit.text().strip() or self.title_en_edit.text().strip()
-        if text:
-            self.slug_edit.setText(generate_slug(text))
+    def _request_auto_slug(self):
+        """启动后台 _SlugWorker 生成 slug。会跳过正在跑的旧 worker。"""
+        if self._slug_worker and self._slug_worker.isRunning():
+            return  # 已有任务在跑，避免重复请求
+        zh = self.title_zh_edit.text().strip()
+        en = self.title_en_edit.text().strip()
+        ja = self.title_ja_edit.text().strip()
+        if not zh and not en and not ja:
+            return
+        self._log('info', '正在生成 Slug（必要时调用翻译）...')
+        self._slug_worker = _SlugWorker(zh, en, ja, self)
+        self._slug_worker.slug_ready.connect(self._on_slug_ready)
+        self._slug_worker.start()
+
+    def _on_slug_ready(self, slug: str, en_title: str):
+        if not slug:
+            self._log('warn', 'Slug 生成失败（翻译未返回有效结果），请手动填写')
+            return
+        self.slug_edit.setText(slug)
+        # 翻译得到的英文标题同步填入英译框（仅当为空时，避免覆盖用户输入）
+        if en_title and not self.title_en_edit.text().strip():
+            self.title_en_edit.setText(en_title)
+        self._log('success', f'Slug 已生成: {slug}')
         self._refresh_status()
+
+    def _on_gen_slug(self):
+        """按钮触发：强制重新生成 slug。"""
+        if self._slug_worker and self._slug_worker.isRunning():
+            return
+        self._request_auto_slug()
 
     def _on_publish(self):
         if not self.archive_path:
@@ -620,6 +675,90 @@ class MainWindow(QMainWindow):
             self.host_lbl.setText(self.config.host_name or 'Chevereto')
             self._load_categories()
             self._load_cosplayers()
+            # bot 配置变更后同步状态
+            self._sync_bot_state_after_settings()
+
+    def _sync_bot_state_after_settings(self):
+        """设置面板保存后，根据新配置调整 bot 状态。"""
+        # 如果 bot 在跑且 token 变了，重启
+        # 如果 bot 在跑但 tg_enabled 关了，停止
+        # 如果 bot 没跑但 tg_enabled 开了且有 token，启动
+        bot_running = self._bot is not None and self._bot.is_running()
+        token = self.config.tg_bot_token.strip()
+        if bot_running and not token:
+            self._stop_bot()
+            return
+        if bot_running and not self.config.tg_enabled:
+            self._stop_bot()
+            return
+        if bot_running and token and self.config.tg_enabled:
+            # token 变了的话重启
+            if self._bot and self._bot.token != token:
+                self._stop_bot()
+                self._start_bot()
+            return
+        if not bot_running and token and self.config.tg_enabled:
+            self._start_bot()
+
+    def _on_toggle_bot(self):
+        if self._bot is not None and self._bot.is_running():
+            self._stop_bot()
+        else:
+            if not self.config.tg_bot_token.strip():
+                QMessageBox.warning(self, 'Bot', '请先在设置里填写 Bot Token')
+                return
+            self._start_bot()
+
+    def _start_bot(self):
+        if self._bot is not None and self._bot.is_running():
+            return
+        cfg = self.config
+        if not cfg.tg_api_id or not cfg.tg_api_hash:
+            QMessageBox.warning(self, 'Bot', '请先在设置里填写 Telegram API ID / API Hash')
+            return
+        if not cfg.tg_bot_token:
+            QMessageBox.warning(self, 'Bot', '请先在设置里填写 Bot Token')
+            return
+        try:
+            from tg_bot import TgBot
+            from bot_handler import BotHandler
+            bot = TgBot(
+                api_id=cfg.tg_api_id,
+                api_hash=cfg.tg_api_hash,
+                bot_token=cfg.tg_bot_token,
+                session_name=cfg.tg_session_name or 'coshub_publisher',
+                proxy=cfg.build_tg_proxy(),
+            )
+            bot.start()  # 内部会验证 token
+            me = bot.get_me()
+            handler = BotHandler(bot, cfg)
+            bot.set_message_handler(handler.handle_update)
+            self._bot = bot
+            self._bot_handler = handler
+            self.bot_btn.setText(f'Bot: @{me.get("username", "?")}')
+            self._log('success', f'Bot 已启动: @{me.get("username")}')
+        except Exception as e:
+            self._log('error', f'Bot 启动失败: {e}')
+            QMessageBox.warning(self, 'Bot', f'启动失败:\n{e}')
+
+    def _stop_bot(self):
+        if self._bot is None:
+            return
+        try:
+            self._bot.stop()
+            self._log('info', 'Bot 已停止')
+        except Exception as e:
+            self._log('warn', f'Bot 停止异常: {e}')
+        finally:
+            self._bot = None
+            self._bot_handler = None
+            self.bot_btn.setText('Bot: 关')
+
+    def closeEvent(self, e):
+        """窗口关闭时停止 bot。"""
+        if self._bot is not None:
+            self._stop_bot()
+        super().closeEvent(e)
 
     def _on_clear_log(self):
         self.log_view.clear()

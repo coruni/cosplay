@@ -127,6 +127,9 @@ export function GalleryCard({ gallery, index = 0, priority = false }: GalleryCar
             'absolute top-3 left-3 inline-flex items-center gap-1',
             'px-2 py-1 rounded-md text-xs font-semibold',
             'border backdrop-blur-md',
+            // 兜底深色底 + 文字描边，保证亮色封面上也可读
+            'shadow-[inset_0_0_0_9999px_rgba(0,0,0,0.35)]',
+            '[text-shadow:0_1px_2px_rgba(0,0,0,0.6)]',
             ratingColorClasses
           )}
         >
@@ -142,11 +145,12 @@ export function GalleryCard({ gallery, index = 0, priority = false }: GalleryCar
             'absolute top-3 right-3 inline-flex items-center gap-1',
             'px-2.5 py-1 rounded-md text-xs font-bold',
             'border backdrop-blur-md',
+            '[text-shadow:0_1px_2px_rgba(0,0,0,0.6)]',
             isFree
-              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 shadow-[0_0_10px_rgba(34,197,94,0.2)]'
+              ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30 shadow-[inset_0_0_0_9999px_rgba(0,0,0,0.35),0_0_10px_rgba(34,197,94,0.2)]'
               : isMembersOnly
-              ? 'bg-[#00d4ff]/20 text-[#00d4ff] border-[#00d4ff]/30 shadow-[0_0_10px_rgba(0,212,255,0.2)]'
-              : 'bg-[#ff2d78]/20 text-[#ff2d78] border-[#ff2d78]/30 shadow-[0_0_10px_rgba(255,45,120,0.2)]'
+              ? 'bg-[#00d4ff]/20 text-[#00d4ff] border-[#00d4ff]/30 shadow-[inset_0_0_0_9999px_rgba(0,0,0,0.35),0_0_10px_rgba(0,212,255,0.2)]'
+              : 'bg-[#ff2d78]/20 text-[#ff2d78] border-[#ff2d78]/30 shadow-[inset_0_0_0_9999px_rgba(0,0,0,0.35),0_0_10px_rgba(255,45,120,0.2)]'
           )}
         >
           {isFree ? (

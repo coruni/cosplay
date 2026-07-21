@@ -111,6 +111,14 @@ class SettingsDialog(QDialog):
         out_row.addWidget(self.browse_btn)
         layout.addLayout(out_row)
 
+        # ─── 解压密码 ───
+        layout.addWidget(self._section('解压密码'))
+        self.archive_passwords_edit = QPlainTextEdit()
+        self.archive_passwords_edit.setPlaceholderText('每行一个密码，遇到加密压缩包时按顺序尝试')
+        pwd_box = self._labeled('密码列表', self.archive_passwords_edit, '每行一个密码，自动按顺序尝试解压加密的 zip/rar/7z')
+        self.archive_passwords_edit.setMinimumHeight(80)
+        layout.addWidget(pwd_box)
+
         # ─── 清理规则 ───
         layout.addWidget(self._section('清理规则'))
         self.auto_clean_cb = QCheckBox('自动删除非图片文件（解压后立即清理）')
@@ -123,6 +131,77 @@ class SettingsDialog(QDialog):
         self.exclude_names_edit = QLineEdit()
         self.exclude_names_edit.setPlaceholderText('Thumbs.db, .DS_Store')
         layout.addWidget(self._labeled('排除文件名', self.exclude_names_edit, '逗号分隔'))
+
+        # ─── Telegram Bot ───
+        layout.addWidget(self._section('Telegram Bot'))
+
+        self.tg_enabled_cb = QCheckBox('GUI 启动时自动启动 Bot')
+        layout.addWidget(self.tg_enabled_cb)
+
+        self.tg_api_id_edit = QLineEdit()
+        self.tg_api_id_edit.setPlaceholderText('12345')
+        layout.addWidget(self._labeled('API ID', self.tg_api_id_edit, '在 https://my.telegram.org/apps 申请'))
+
+        self.tg_api_hash_edit = QLineEdit()
+        self.tg_api_hash_edit.setEchoMode(QLineEdit.Password)
+        self.tg_api_hash_edit.setPlaceholderText('abcdef0123456789abcdef0123456789')
+        layout.addWidget(self._labeled('API Hash', self.tg_api_hash_edit, '与 API ID 配对使用'))
+
+        self.tg_token_edit = QLineEdit()
+        self.tg_token_edit.setEchoMode(QLineEdit.Password)
+        self.tg_token_edit.setPlaceholderText('123456:ABC-DEF...')
+        layout.addWidget(self._labeled('Bot Token', self.tg_token_edit, '从 @BotFather 获取的 bot token'))
+
+        self.tg_chats_edit = QLineEdit()
+        self.tg_chats_edit.setPlaceholderText('123456789, 987654321')
+        layout.addWidget(self._labeled('白名单 Chat ID', self.tg_chats_edit, '逗号分隔，留空表示接受所有 chat（不安全）'))
+
+        self.tg_rating_combo = QComboBox()
+        self.tg_rating_combo.addItem('SFW', 'sfw')
+        self.tg_rating_combo.addItem('NSFW', 'nsfw')
+        layout.addWidget(self._labeled('默认分级', self.tg_rating_combo, 'Bot 自动发布时使用的分级'))
+
+        self.tg_price_spin = QSpinBox()
+        self.tg_price_spin.setRange(0, 999999)
+        self.tg_price_spin.setSuffix(' ¥')
+        layout.addWidget(self._labeled('默认价格', self.tg_price_spin, '0 表示免费'))
+
+        self.tg_premium_cb = QCheckBox('默认设为会员专享')
+        layout.addWidget(self.tg_premium_cb)
+
+        # ─── 代理 ───
+        layout.addWidget(self._section('Telegram 代理（国内必填）'))
+
+        self.tg_proxy_type_combo = QComboBox()
+        self.tg_proxy_type_combo.addItem('不使用', '')
+        self.tg_proxy_type_combo.addItem('SOCKS5', 'socks5')
+        self.tg_proxy_type_combo.addItem('HTTP', 'http')
+        layout.addWidget(self._labeled('代理类型', self.tg_proxy_type_combo, '国内连不上 Telegram 时使用'))
+
+        proxy_row = QHBoxLayout()
+        self.tg_proxy_host_edit = QLineEdit()
+        self.tg_proxy_host_edit.setPlaceholderText('127.0.0.1')
+        self.tg_proxy_port_edit = QLineEdit()
+        self.tg_proxy_port_edit.setPlaceholderText('7890')
+        self.tg_proxy_port_edit.setFixedWidth(80)
+        proxy_row.addWidget(self._labeled('Host', self.tg_proxy_host_edit, ''))
+        proxy_row.addWidget(self._labeled('Port', self.tg_proxy_port_edit, ''))
+        layout.addLayout(proxy_row)
+
+        proxy_auth_row = QHBoxLayout()
+        self.tg_proxy_user_edit = QLineEdit()
+        self.tg_proxy_user_edit.setPlaceholderText('（可选）用户名')
+        self.tg_proxy_pass_edit = QLineEdit()
+        self.tg_proxy_pass_edit.setEchoMode(QLineEdit.Password)
+        self.tg_proxy_pass_edit.setPlaceholderText('（可选）密码')
+        proxy_auth_row.addWidget(self._labeled('用户名', self.tg_proxy_user_edit, ''))
+        proxy_auth_row.addWidget(self._labeled('密码', self.tg_proxy_pass_edit, ''))
+        layout.addLayout(proxy_auth_row)
+
+        # 提示：socks5 代理需要 python-socks 库
+        hint = QLabel('提示：代理需要 python-socks 库（已包含在 requirements）')
+        hint.setObjectName('fieldHint')
+        layout.addWidget(hint)
 
         layout.addStretch()
 
@@ -203,6 +282,27 @@ class SettingsDialog(QDialog):
         self.auto_clean_cb.setChecked(self.config.auto_clean_non_image)
         self.exclude_exts_edit.setText(', '.join(self.config.clean_exclude_exts))
         self.exclude_names_edit.setText(', '.join(self.config.clean_exclude_names))
+        # 解压密码
+        self.archive_passwords_edit.setPlainText('\n'.join(self.config.archive_passwords))
+        # Telegram Bot
+        self.tg_enabled_cb.setChecked(self.config.tg_enabled)
+        self.tg_api_id_edit.setText(self.config.tg_api_id)
+        self.tg_api_hash_edit.setText(self.config.tg_api_hash)
+        self.tg_token_edit.setText(self.config.tg_bot_token)
+        self.tg_chats_edit.setText(', '.join(str(c) for c in self.config.tg_allowed_chat_ids))
+        tg_rating_idx = self.tg_rating_combo.findData(self.config.tg_default_rating)
+        if tg_rating_idx >= 0:
+            self.tg_rating_combo.setCurrentIndex(tg_rating_idx)
+        self.tg_price_spin.setValue(int(self.config.tg_default_price))
+        self.tg_premium_cb.setChecked(bool(self.config.tg_default_premium))
+        # 代理
+        proxy_idx = self.tg_proxy_type_combo.findData(self.config.tg_proxy_type)
+        if proxy_idx >= 0:
+            self.tg_proxy_type_combo.setCurrentIndex(proxy_idx)
+        self.tg_proxy_host_edit.setText(self.config.tg_proxy_host)
+        self.tg_proxy_port_edit.setText(str(self.config.tg_proxy_port) if self.config.tg_proxy_port else '')
+        self.tg_proxy_user_edit.setText(self.config.tg_proxy_username)
+        self.tg_proxy_pass_edit.setText(self.config.tg_proxy_password)
 
     def _on_save(self):
         self.config.api_url = self.api_url_edit.text().strip()
@@ -225,5 +325,29 @@ class SettingsDialog(QDialog):
         self.config.clean_exclude_names = [
             s.strip() for s in self.exclude_names_edit.text().split(',') if s.strip()
         ]
+        # 解压密码：按行分割，去掉空行
+        self.config.archive_passwords = [
+            line.strip() for line in self.archive_passwords_edit.toPlainText().splitlines()
+            if line.strip()
+        ]
+        # Telegram Bot
+        self.config.tg_enabled = self.tg_enabled_cb.isChecked()
+        self.config.tg_api_id = self.tg_api_id_edit.text().strip()
+        self.config.tg_api_hash = self.tg_api_hash_edit.text().strip()
+        self.config.tg_bot_token = self.tg_token_edit.text().strip()
+        self.config.tg_allowed_chat_ids = [
+            int(s.strip()) for s in self.tg_chats_edit.text().split(',')
+            if s.strip().lstrip('-').isdigit()
+        ]
+        self.config.tg_default_rating = self.tg_rating_combo.currentData()
+        self.config.tg_default_price = self.tg_price_spin.value()
+        self.config.tg_default_premium = self.tg_premium_cb.isChecked()
+        # 代理
+        self.config.tg_proxy_type = self.tg_proxy_type_combo.currentData()
+        self.config.tg_proxy_host = self.tg_proxy_host_edit.text().strip()
+        port_str = self.tg_proxy_port_edit.text().strip()
+        self.config.tg_proxy_port = int(port_str) if port_str.isdigit() else 0
+        self.config.tg_proxy_username = self.tg_proxy_user_edit.text().strip()
+        self.config.tg_proxy_password = self.tg_proxy_pass_edit.text().strip()
         self.config.save()
         self.accept()

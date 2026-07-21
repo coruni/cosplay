@@ -100,10 +100,9 @@ export default async function GalleryDetailPage({ params }: Props) {
   }
 
   // Fire-and-forget view counter increment. Don't await — must not block
-  // rendering. Failures (e.g. Redis down) are silently swallowed inside
-  // recordView → incrementViewCount. This page is dynamically rendered
-  // (uses headers() via getShowNsfwServer + getCurrentUser), so each
-  // pageview triggers exactly one increment.
+  // rendering. Failures are silently swallowed inside recordView.
+  // This page is dynamically rendered (uses headers() via getShowNsfwServer
+  // + getCurrentUser), so each pageview triggers exactly one DB increment.
   void recordView(slug);
 
   const isNsfw = gallery.rating === 'nsfw';

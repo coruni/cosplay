@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
-import { invalidateGalleryCaches } from '@/lib/data';
+import { invalidateGalleryCaches, ensureUniqueSlug } from '@/lib/data';
 import { validateToken, getTokenFromCookies } from '@/lib/auth';
 
 function checkAuth(request: NextRequest): boolean {
@@ -256,6 +256,8 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    // Pre-check + auto-deduplicate slug to avoid P2002 collisions.
+    data.slug = await ensureUniqueSlug(data.slug);
     const gallery = await prisma.gallery.create({ data });
     await invalidateGalleryCaches();
     return NextResponse.json(gallery, { status: 201 });
@@ -264,8 +266,9 @@ export async function POST(request: NextRequest) {
       e instanceof Prisma.PrismaClientKnownRequestError &&
       e.code === 'P2002'
     ) {
+      // Race condition: slug was taken between ensureUniqueSlug and create.
       return NextResponse.json(
-        { error: '该 slug 已存在' },
+        { error: '该 slug 已存在，请重试或修改 slug' },
         { status: 409 }
       );
     }

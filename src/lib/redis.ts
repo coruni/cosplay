@@ -81,23 +81,4 @@ export async function cacheDelete(pattern: string): Promise<void> {
   }
 }
 
-export async function incrementViewCount(gallerySlug: string): Promise<number> {
-  try {
-    const key = `views:${gallerySlug}`;
-    const count = await redis.incr(key);
-    return count;
-  } catch {
-    return 0;
-  }
-}
-
-export async function getViewCount(gallerySlug: string): Promise<number> {
-  try {
-    const count = await redis.get(`views:${gallerySlug}`);
-    return count ? parseInt(count, 10) : 0;
-  } catch {
-    return 0;
-  }
-}
-
 export { CACHE_TTL };

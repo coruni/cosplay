@@ -1,5 +1,5 @@
 import { prisma } from './db';
-import { cacheGet, cacheSet, cacheDelete, CACHE_TTL, incrementViewCount, getViewCount } from './redis';
+import { cacheGet, cacheSet, cacheDelete, CACHE_TTL } from './redis';
 import { resolveImageUrl } from './s3';
 import type { Gallery, GalleryFilter, Locale, CategoryNameMap, CategoryOption } from '@/types';
 import { Prisma } from '@prisma/client';
@@ -129,12 +129,7 @@ export async function getGalleryBySlug(slug: string): Promise<Gallery | null> {
   const row = await prisma.gallery.findUnique({ where: { slug } });
   if (!row) return null;
 
-  // Merge Redis view count
-  const redisViews = await getViewCount(slug);
   const gallery = toGallery(row);
-  if (redisViews > 0) {
-    gallery.viewCount += redisViews;
-  }
 
   // Cache
   await cacheSet(cacheKey, gallery, CACHE_TTL.GALLERY_DETAIL);
@@ -260,9 +255,18 @@ export async function getFeaturedGalleries(
   return galleries;
 }
 
-/** Record a view (Redis counter) */
+/** Record a view — increment viewCount in DB (DB is the single source of truth). */
 export async function recordView(slug: string): Promise<void> {
-  await incrementViewCount(slug);
+  try {
+    await prisma.gallery.updateMany({
+      where: { slug },
+      data: { viewCount: { increment: 1 } },
+    });
+    // Invalidate detail cache so the next read reflects the new count
+    await cacheDelete(`gallery:${slug}`);
+  } catch (e) {
+    console.error('view count increment failed:', e);
+  }
 }
 
 /** Invalidate caches when data changes */
@@ -270,4 +274,37 @@ export async function invalidateGalleryCaches(): Promise<void> {
   await cacheDelete('galleries:*');
   await cacheDelete('gallery:*');
   await cacheDelete('categories:*');
+}
+
+/**
+ * Ensure a slug is unique in DB. If `slug` already exists, append `-2`,
+ * `-3`, ... until a free slug is found. Truncates the base slug so the
+ * suffix always fits within the 80-char column limit.
+ *
+ * Used by the gallery create API to prevent P2002 collisions instead of
+ * bouncing back a 409 to the client.
+ */
+export async function ensureUniqueSlug(slug: string): Promise<string> {
+  const MAX = 80;
+  const base = slug.slice(0, MAX);
+  // Quick path: slug is free
+  const existing = await prisma.gallery.findUnique({
+    where: { slug: base },
+    select: { slug: true },
+  });
+  if (!existing) return base;
+
+  // Conflict: append -2, -3, ... (truncate base to leave room for suffix)
+  for (let i = 2; i < 1000; i++) {
+    const suffix = `-${i}`;
+    const candidate = `${base.slice(0, MAX - suffix.length)}${suffix}`;
+    const taken = await prisma.gallery.findUnique({
+      where: { slug: candidate },
+      select: { slug: true },
+    });
+    if (!taken) return candidate;
+  }
+  // Fallback: append a cuid-like random tail to escape pathological cases
+  const tail = Math.random().toString(36).slice(2, 8);
+  return `${base.slice(0, MAX - tail.length - 1)}-${tail}`;
 }

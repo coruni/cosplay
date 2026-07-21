@@ -2,6 +2,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
+import re
 import requests
 
 from config import AppConfig
@@ -123,3 +124,74 @@ def generate_slug(text: str) -> str:
     if not text:
         text = 'gallery'
     return text
+
+
+# ── 自动 Slug（参考后台 src/lib/gallery-helpers.ts 的 autoSlug 逻辑） ──
+
+_CJK_RE = re.compile(r'[一-鿿぀-ヿ가-힯]')
+
+
+def has_cjk(s: str) -> bool:
+    return bool(_CJK_RE.search(s or ''))
+
+
+def translate_text(text: str, from_lang: str, to_lang: str, timeout: int = 8) -> str | None:
+    """
+    调用 MyMemory 免费翻译 API（与后台保持一致）。
+    from_lang / to_lang 取 'zh' | 'en' | 'ja'。
+    返回翻译结果；失败返回 None。
+    """
+    q = (text or '').strip()
+    if not q or from_lang == to_lang:
+        return None
+    if len(q) > 400:  # 免费 API 限制
+        return None
+    mm_code = {'zh': 'zh-CN', 'en': 'en', 'ja': 'ja'}
+    src = mm_code.get(from_lang, from_lang)
+    dst = mm_code.get(to_lang, to_lang)
+    url = 'https://api.mymemory.translated.net/get'
+    params = {'q': q, 'langpair': f'{src}|{dst}'}
+    try:
+        resp = requests.get(url, params=params, timeout=timeout)
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+        t = data.get('responseData', {}).get('translatedText')
+        if isinstance(t, str) and not t.startswith('MYMEMORY WARNING'):
+            return t.strip()
+    except Exception:
+        pass
+    return None
+
+
+def auto_slug(title_zh: str, title_en: str, title_ja: str = '') -> tuple[str, str]:
+    """
+    返回 (slug, en_title)。
+    1. 英文标题是拉丁文 → 直接 slugify
+    2. 日文标题是拉丁文（romaji）→ 直接 slugify
+    3. 有中文 → 翻译成英文再 slugify
+    4. 有日文 → 翻译成英文再 slugify
+    全失败时返回 ('', '')。
+    """
+    en = (title_en or '').strip()
+    ja = (title_ja or '').strip()
+    zh = (title_zh or '').strip()
+
+    if en and not has_cjk(en):
+        return generate_slug(en), ''
+    if ja and not has_cjk(ja):
+        return generate_slug(ja), ''
+
+    if zh:
+        en_title = translate_text(zh, 'zh', 'en')
+        if en_title:
+            slug = generate_slug(en_title)
+            if slug and slug != 'gallery':
+                return slug, en_title
+    if ja:
+        en_title = translate_text(ja, 'ja', 'en')
+        if en_title:
+            slug = generate_slug(en_title)
+            if slug and slug != 'gallery':
+                return slug, en_title
+    return '', ''
