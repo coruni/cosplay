@@ -74,25 +74,50 @@ export function ImageUploader({
 
       try {
         if (multiple) {
-          const keys: string[] = [];
-          for (let i = 0; i < fileArr.length; i++) {
-            const file = fileArr[i];
-            const key = await uploadImage(
-              file,
-              folder,
-              (p) => {
-                setProgress((prev) =>
-                  prev.map((entry, idx) =>
-                    idx === i ? { ...entry, percent: p } : entry
-                  )
-                );
-              },
-              { provider, nsfw }
+          const total = fileArr.length;
+          // 并发上传（限制并发数），按索引回填结果，保证与选择顺序一致
+          const results: (string | null)[] = new Array(total).fill(null);
+          const fileErrors: string[] = [];
+          let unauthorized = false;
+
+          const updateProgressAt = (i: number, p: number) =>
+            setProgress((prev) =>
+              prev.map((entry, idx) => (idx === i ? { ...entry, percent: p } : entry))
             );
-            keys.push(key);
-          }
+
+          const CONCURRENCY = 5; // 同时进行的上传数，兼顾速度与稳定性
+          let cursor = 0;
+          const worker = async () => {
+            while (cursor < total) {
+              const i = cursor++;
+              const file = fileArr[i];
+              try {
+                results[i] = await uploadImage(
+                  file,
+                  folder,
+                  (p) => updateProgressAt(i, p),
+                  { provider, nsfw }
+                );
+              } catch (e) {
+                const msg = e instanceof Error ? e.message : 'Upload failed';
+                fileErrors.push(`${file.name}: ${msg}`);
+                if (msg === 'Unauthorized') unauthorized = true;
+              }
+            }
+          };
+          await Promise.all(
+            Array.from({ length: Math.min(CONCURRENCY, total) }, () => worker())
+          );
+
+          // 结果已按原选择顺序（索引回填）排列，无需重排；顺序天然正确。
+          const successful = results.filter((k): k is string => k !== null);
           const current = Array.isArray(value) ? value : [];
-          onChange([...current, ...keys]);
+          onChange([...current, ...successful]);
+
+          if (fileErrors.length) {
+            setError(fileErrors.join('  •  '));
+            if (unauthorized) window.location.href = '/admin/login';
+          }
         } else {
           const file = fileArr[0];
           const key = await uploadImage(
