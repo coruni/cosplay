@@ -130,7 +130,7 @@ export default async function GalleryDetailPage({ params }: Props) {
   return (
     <div className="min-h-screen">
       {/* ========== Hero / Cover Image ========== */}
-      <div className="relative w-full h-[50vh] sm:h-[60vh] lg:h-[70vh] overflow-hidden">
+      <div className="relative w-full h-[50vh] sm:h-[60vh] lg:h-[70vh] overflow-hidden -mt-16">
         <Image
           src={gallery.cover}
           alt={title}
@@ -161,7 +161,7 @@ export default async function GalleryDetailPage({ params }: Props) {
         <a
           href={backHref}
           className={cn(
-            'absolute top-6 left-4 sm:left-6 lg:left-8 z-10',
+            'absolute top-20 left-4 sm:left-6 lg:left-8 z-10',
             'inline-flex items-center gap-2 px-4 py-2.5 rounded-xl',
             'text-sm font-medium text-white/80',
             'bg-black/30 backdrop-blur-md',

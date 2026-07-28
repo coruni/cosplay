@@ -16,6 +16,7 @@ import { NsfwToggle } from '@/components/layout/nsfw-toggle';
 import { MobileNav } from '@/components/layout/mobile-nav';
 import { UserMenu } from '@/components/layout/user-menu';
 import { cn } from '@/lib/utils';
+import { useHeaderStore } from '@/lib/header-store';
 
 interface LocaleOption {
   code: string;
@@ -50,7 +51,7 @@ const desktopNavLinks: NavLink[] = [
  * - NSFW toggle with violet glow when active
  * - Language switcher dropdown with flag emoji indicators
  * - Mobile hamburger → opens MobileNav sheet
- * - Sticky with backdrop-blur on scroll (glassmorphism)
+ * - Fixed at top (cover pages render the hero *under* the header); solid
  * - Framer Motion slide-down entrance animation
  * - All touch targets ≥ 44×44px
  */
@@ -59,27 +60,47 @@ export function Header() {
   const locale = useLocale();
   const shouldReduceMotion = useReducedMotion();
 
+  // Whether the current route owns a cover image that should show through a
+  // transparent header at the top (set by the gallery detail route).
+  const transparentAtTop = useHeaderStore((s) => s.transparentAtTop);
+  // Read the initial scroll position synchronously so the bar is never shown
+  // transparent on mount when the page is already scrolled (e.g. scroll
+  // restoration or client-side navigation to a scrolled route).
+  const [scrolled, setScrolled] = useState(
+    typeof window !== 'undefined' ? window.scrollY > 10 : false
+  );
+
+  // Track scroll for the glassmorphism effect. rAF-throttled so rapid scroll
+  // events don't cause redundant re-renders / flicker, and the functional
+  // update avoids toggling when nothing changed.
+  useEffect(() => {
+    let ticking = false;
+    const update = () => {
+      const next = window.scrollY > 10;
+      setScrolled((prev) => (prev === next ? prev : next));
+      ticking = false;
+    };
+    const onScroll = () => {
+      if (!ticking) {
+        ticking = true;
+        requestAnimationFrame(update);
+      }
+    };
+    update(); // Sync to current position on mount
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
   // State
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [searchExpanded, setSearchExpanded] = useState(false);
   const [searchValue, setSearchValue] = useState('');
   const [langDropdownOpen, setLangDropdownOpen] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
 
   // Refs
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const langDropdownRef = useRef<HTMLDivElement>(null);
-
-  // Track scroll for glassmorphism effect
-  useEffect(() => {
-    const handleScroll = () => {
-      setScrolled(window.scrollY > 10);
-    };
-    handleScroll(); // Check initial state
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
 
   // Focus search input when expanded
   useEffect(() => {
@@ -172,19 +193,24 @@ export function Header() {
   return (
     <>
       <motion.header
-        initial={{ y: -80, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
+        initial={{ y: -80 }}
+        animate={{ y: 0 }}
         transition={
           shouldReduceMotion
             ? { duration: 0 }
             : { duration: 0.5, ease: [0.25, 0.46, 0.45, 0.94] }
         }
         className={cn(
-          'sticky top-0 z-40 w-full',
-          'transition-all duration-300',
-          scrolled
+          'fixed top-0 left-0 right-0 z-40 w-full',
+          // Scope the transition to paint-related props only so it never
+          // interferes with framer-motion's `y` transform (avoids flicker).
+          'transition-[background-color,border-color,box-shadow,backdrop-filter] duration-300',
+          // Pages without a cover (or when scrolled) → always solid glass.
+          // Pages with a cover at the top → transparent (cover shows through)
+          // with a faint top scrim for legibility, turning solid on scroll.
+          !transparentAtTop || scrolled
             ? 'bg-[#1c1c28]/80 backdrop-blur-xl border-b border-white/[0.06] shadow-[0_1px_0_rgba(255,255,255,0.03),0_8px_32px_rgba(0,0,0,0.4)]'
-            : 'bg-transparent'
+            : 'bg-gradient-to-b from-black/40 to-transparent backdrop-blur-sm'
         )}
       >
         <div className="mx-auto flex h-16 max-w-7xl items-center gap-3 px-4 sm:gap-4 sm:px-6 lg:px-8">

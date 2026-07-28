@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef, useLayoutEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useReducedMotion } from '@/lib/use-reduced-motion';
 import { useTranslations, useLocale } from 'next-intl';
@@ -19,6 +19,7 @@ import {
   SparklesIcon,
 } from 'lucide-react';
 import { useNsfwStore } from '@/lib/nsfw-store';
+import { useHeaderStore } from '@/lib/header-store';
 import { getRatingLabel, getRatingColor } from '@/lib/content-filter';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -57,6 +58,25 @@ export function GalleryDetailClient({
   const router = useRouter();
   const shouldReduceMotion = useReducedMotion();
   const { showNsfw, ageConfirmed, confirmAge } = useNsfwStore();
+
+  // Tell the global header whether this detail page has a cover image, so it
+  // can render transparent-at-top → solid on scroll. Pages without a cover
+  // keep the solid header.
+  // IMPORTANT: this must run in a layout effect (before browser paint), not a
+  // passive `useEffect`. Otherwise, on first paint the store still says
+  // `transparentAtTop = false` (solid), and if the user scrolls during that
+  // window the late-updated value flips the header transparent for one frame
+  // before `scrolled` kicks in → "solid → transparent → solid" flash. The
+  // layout effect sets the flag synchronously before paint so the header is
+  // already transparent at the top and only ever transitions transparent→solid.
+  // We use getState() to avoid subscribing this component to the header store.
+  const useIsoLayoutEffect =
+    typeof window !== 'undefined' ? useLayoutEffect : useEffect;
+  useIsoLayoutEffect(() => {
+    const setTransparentAtTop = useHeaderStore.getState().setTransparentAtTop;
+    setTransparentAtTop(Boolean(gallery.cover));
+    return () => setTransparentAtTop(false);
+  }, [gallery.cover]);
 
   const [isUnlocking, setIsUnlocking] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
