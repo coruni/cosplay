@@ -4,6 +4,11 @@ import { prisma } from '@/lib/db';
 import { getSiteUrl } from '@/lib/site';
 import type { MetadataRoute } from 'next';
 
+// Generate on-demand (not at build time) so `next build` never needs a live
+// database. Tables are created post-deploy via `prisma migrate deploy`; after
+// that this route resolves gallery/category URLs at request time.
+export const dynamic = 'force-dynamic';
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = await getSiteUrl();
   const locales = routing.locales;
@@ -19,36 +24,44 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${baseUrl}/${locale}/terms`, lastModified: new Date(), changeFrequency: 'yearly' as const, priority: 0.3 },
   ]);
 
-  // Category listing pages (SFW by default for crawlers).
-  const categories = await getAllCategories();
-  const categoryPages = locales.flatMap((locale) =>
-    categories.map((cat) => ({
-      url: `${baseUrl}/${locale}/gallery?category=${encodeURIComponent(cat)}`,
-      changeFrequency: 'weekly' as const,
-      priority: 0.6,
-    }))
-  );
+  // Category + gallery pages require the DB. If it is briefly unavailable we
+  // still serve a valid (partial) sitemap instead of 500-ing.
+  let categoryPages: MetadataRoute.Sitemap = [];
+  let galleryPages: MetadataRoute.Sitemap = [];
+  try {
+    // Category listing pages (SFW by default for crawlers).
+    const categories = await getAllCategories();
+    categoryPages = locales.flatMap((locale) =>
+      categories.map((cat) => ({
+        url: `${baseUrl}/${locale}/gallery?category=${encodeURIComponent(cat)}`,
+        changeFrequency: 'weekly' as const,
+        priority: 0.6,
+      }))
+    );
 
-  // Gallery detail pages — SFW ONLY.
-  // NSFW galleries are intentionally excluded so they never reach crawlers;
-  // their own <meta name="robots" content="noindex"> is the second guard.
-  //
-  // Pull all SFW galleries in one shot (select only slug + createdAt, which
-  // is cheap). The previous `getGalleries({ pageSize: 1000 })` call silently
-  // dropped anything beyond the 1000-row page cap, leaving newer SFW galleries
-  // out of the sitemap forever.
-  const galleries = await prisma.gallery.findMany({
-    where: { rating: 'sfw' },
-    select: { slug: true, createdAt: true },
-  });
-  const galleryPages = galleries.flatMap((gallery) =>
-    locales.map((locale) => ({
-      url: `${baseUrl}/${locale}/gallery/${gallery.slug}`,
-      lastModified: new Date(gallery.createdAt),
-      changeFrequency: 'monthly' as const,
-      priority: 0.8,
-    }))
-  );
+    // Gallery detail pages — SFW ONLY.
+    // NSFW galleries are intentionally excluded so they never reach crawlers;
+    // their own <meta name="robots" content="noindex"> is the second guard.
+    //
+    // Pull all SFW galleries in one shot (select only slug + createdAt, which
+    // is cheap). The previous `getGalleries({ pageSize: 1000 })` call silently
+    // dropped anything beyond the 1000-row page cap, leaving newer SFW galleries
+    // out of the sitemap forever.
+    const galleries = await prisma.gallery.findMany({
+      where: { rating: 'sfw' },
+      select: { slug: true, createdAt: true },
+    });
+    galleryPages = galleries.flatMap((gallery) =>
+      locales.map((locale) => ({
+        url: `${baseUrl}/${locale}/gallery/${gallery.slug}`,
+        lastModified: new Date(gallery.createdAt),
+        changeFrequency: 'monthly' as const,
+        priority: 0.8,
+      }))
+    );
+  } catch (err) {
+    console.warn('[sitemap] 生成分类/图集条目失败，仅输出静态页:', err instanceof Error ? err.message : String(err));
+  }
 
   return [...staticPages, ...categoryPages, ...galleryPages];
 }
