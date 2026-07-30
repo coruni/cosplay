@@ -234,7 +234,7 @@ export async function getGalleryCategoryOptions(): Promise<CategoryOption[]> {
 }
 
 export async function getFeaturedGalleries(
-  limit = 6,
+  limit = 8,
   showNsfw = false
 ): Promise<Gallery[]> {
   // Cache key must include showNsfw, otherwise SFW/NSFW results would collide.

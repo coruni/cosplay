@@ -1,4 +1,5 @@
 from __future__ import annotations
+import difflib
 from pathlib import Path
 from datetime import datetime
 
@@ -7,13 +8,15 @@ from PyQt5.QtWidgets import (
     QFileDialog, QLabel, QFrame, QProgressBar, QMessageBox,
     QLineEdit, QCheckBox, QPlainTextEdit, QSplitter, QComboBox,
     QSizePolicy, QScrollArea, QDialog, QCompleter,
+    QListWidget, QListWidgetItem,
 )
 from PyQt5.QtCore import Qt, QSize, QStringListModel, QThread, pyqtSignal
 from PyQt5.QtGui import QFont, QColor, QTextCursor, QDragEnterEvent, QDropEvent
 
 from config import AppConfig
 from gallery_publisher import (
-    GalleryPayload, generate_slug, auto_slug, fetch_categories, fetch_cosplayers,
+    GalleryPayload, generate_slug, auto_slug, translate_text,
+    fetch_categories, fetch_cosplayers,
 )
 from publish_worker import PublishWorker
 from settings_dialog import SettingsDialog
@@ -44,20 +47,39 @@ LOG_COLORS = {
 
 class _SlugWorker(QThread):
     """后台调用 auto_slug（含网络翻译），完成后发信号回主线程。"""
-    slug_ready = pyqtSignal(str, str)  # slug, en_title
+    slug_ready = pyqtSignal(str, str, int)  # slug, en_title, gen
 
-    def __init__(self, title_zh: str, title_en: str, title_ja: str = '', parent=None):
+    def __init__(self, title_zh: str, title_en: str, title_ja: str = '', parent=None, gen: int = 0):
         super().__init__(parent)
         self._zh = title_zh
         self._en = title_en
         self._ja = title_ja
+        self.gen = gen
 
     def run(self):
         try:
             slug, en_title = auto_slug(self._zh, self._en, self._ja)
-            self.slug_ready.emit(slug, en_title)
+            self.slug_ready.emit(slug, en_title, self.gen)
         except Exception:
-            self.slug_ready.emit('', '')
+            self.slug_ready.emit('', '', self.gen)
+
+
+class _JaWorker(QThread):
+    """后台翻译（zh/en → ja），完成后发信号回主线程填充日文标题。"""
+    ja_ready = pyqtSignal(str, int)  # ja_title, gen
+
+    def __init__(self, source_lang: str, source_text: str, parent=None, gen: int = 0):
+        super().__init__(parent)
+        self._lang = source_lang
+        self._text = source_text
+        self.gen = gen
+
+    def run(self):
+        try:
+            ja = translate_text(self._text, self._lang, 'ja')
+            self.ja_ready.emit(ja or '', self.gen)
+        except Exception:
+            self.ja_ready.emit('', self.gen)
 
 
 class DropFrame(QFrame):
@@ -90,7 +112,7 @@ class DropFrame(QFrame):
         paths = [Path(u.toLocalFile()) for u in urls if u.toLocalFile()]
         archives = [p for p in paths if p.is_file() and is_archive(p)]
         if archives and self._on_drop:
-            self._on_drop(archives[0])
+            self._on_drop(archives)
         e.acceptProposedAction()
 
 
@@ -104,8 +126,14 @@ class MainWindow(QMainWindow):
         self.cosplayers: list[dict] = []
         self._coser_names: list[str] = []
         self._slug_worker: _SlugWorker | None = None
+        self._ja_worker: _JaWorker | None = None
         self._bot = None  # TgBot
         self._bot_handler = None  # BotHandler
+        self._archive_queue: list[Path] = []  # 待顺序处理的压缩包队列
+        self._auto_gen = 0  # 代次令牌：每载入新压缩包自增，旧 worker 回调 gen 不匹配则忽略
+        self._batch_mode = False  # 批量模式：用户点一次「一键发布」后自动连续发布剩余队列
+        self._batch_publish_when_slug_ready = False  # 批量模式下 slug 翻译完即自动发布
+        self._batch_publish_when_ja_ready = False  # 批量模式下 ja 翻译完即自动发布
 
         self.setWindowTitle('CosHub Publisher')
         self.resize(960, 760)
@@ -223,7 +251,7 @@ class MainWindow(QMainWindow):
         lay.addWidget(title)
 
         self.drop_frame = DropFrame()
-        self.drop_frame.set_drop_handler(self._on_archive_dropped)
+        self.drop_frame.set_drop_handler(self._on_archives_dropped)
 
         drop_lay = QVBoxLayout(self.drop_frame)
         drop_lay.setContentsMargins(16, 8, 16, 8)
@@ -249,7 +277,17 @@ class MainWindow(QMainWindow):
         self.select_btn.setCursor(Qt.PointingHandCursor)
         self.select_btn.clicked.connect(self._on_select_archive)
         btn_row.addWidget(self.select_btn)
+        self.next_btn = QPushButton('下一个 ▶')
+        self.next_btn.setObjectName('ghostBtn')
+        self.next_btn.setMinimumHeight(32)
+        self.next_btn.setCursor(Qt.PointingHandCursor)
+        self.next_btn.setEnabled(False)
+        self.next_btn.clicked.connect(lambda: self._process_queue_head(skip_current=True))
+        btn_row.addWidget(self.next_btn)
         btn_row.addStretch()
+        self.queue_label = QLabel('队列：空')
+        self.queue_label.setObjectName('dropSubHint')
+        btn_row.addWidget(self.queue_label)
         lay.addLayout(btn_row)
 
         return box
@@ -348,16 +386,21 @@ class MainWindow(QMainWindow):
         # 分类（多选 + 标签）
         cat_row = QHBoxLayout()
         cat_row.setSpacing(8)
-        cat_row.addWidget(self._mini_label('分类'))
-        self.category_combo = QComboBox()
-        self.category_combo.setMinimumHeight(32)
-        self.category_combo.addItem('（不选）', '')
-        cat_row.addWidget(self.category_combo, 1)
-        cat_row.addWidget(self._mini_label('标签'))
+        cat_row.addWidget(self._mini_label('分类'), 0)
+        self.category_list = QListWidget()
+        self.category_list.setMinimumHeight(96)
+        self.category_list.setSelectionMode(QListWidget.NoSelection)
+        self.category_list.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.category_list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        cat_row.addWidget(self.category_list, 1)
+        cat_col = QVBoxLayout()
+        cat_col.setSpacing(6)
+        cat_col.addWidget(self._mini_label('标签'))
         self.tags_edit = QLineEdit()
         self.tags_edit.setPlaceholderText('逗号分隔')
         self.tags_edit.setMinimumHeight(32)
-        cat_row.addWidget(self.tags_edit, 1)
+        cat_col.addWidget(self.tags_edit)
+        cat_row.addLayout(cat_col, 1)
         lay.addLayout(cat_row)
 
         return box
@@ -502,7 +545,6 @@ class MainWindow(QMainWindow):
 
         self.publish_btn.setEnabled(
             bool(self.archive_path)
-            and bool(self.slug_edit.text().strip())
             and bool(self.title_zh_edit.text().strip())
             and not (self.worker and self.worker.isRunning())
         )
@@ -513,11 +555,15 @@ class MainWindow(QMainWindow):
         try:
             cats = fetch_categories(self.config)
             self.categories = cats
-            self.category_combo.clear()
-            self.category_combo.addItem('（不选）', '')
+            self.category_list.clear()
             for c in cats:
                 name = c.get('nameZh') or c.get('nameEn') or c.get('nameJa') or c.get('slug', '')
-                self.category_combo.addItem(f"{c.get('icon','')} {name}", c.get('slug', ''))
+                slug = c.get('slug', '')
+                item = QListWidgetItem(f"{c.get('icon','')} {name}")
+                item.setData(Qt.UserRole, slug)
+                item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+                item.setCheckState(Qt.Unchecked)
+                self.category_list.addItem(item)
         except Exception as e:
             self._log('warn', f'加载分类失败: {e}')
 
@@ -535,6 +581,31 @@ class MainWindow(QMainWindow):
         except Exception as e:
             self._log('warn', f'加载 coser 列表失败: {e}')
 
+    def _match_coser(self, name: str) -> str | None:
+        """
+        在 cosplayer 列表中查找与给定名字最相似的 coser，返回其规范名（name）。
+        相似度低于阈值（避免误填不相关的 coser）或列表为空时返回 None。
+        """
+        name = (name or '').strip()
+        if not name or not self.cosplayers:
+            return None
+        best: str | None = None
+        best_ratio = 0.0
+        for c in self.cosplayers:
+            variants = [
+                v for v in (
+                    c.get('name'), c.get('nameZh'),
+                    c.get('nameEn'), c.get('nameJa'), c.get('slug'),
+                ) if isinstance(v, str) and v.strip()
+            ]
+            for v in variants:
+                ratio = difflib.SequenceMatcher(None, name, v).ratio()
+                if ratio > best_ratio:
+                    best_ratio = ratio
+                    best = c.get('name') or v
+        # 阈值 0.6：中英混排名字差异较大时也不会误填
+        return best if best_ratio >= 0.6 else None
+
     def _on_open_coser_list(self):
         if not self.cosplayers:
             QMessageBox.information(self, '提示', '暂无 coser 数据，请检查后台地址 / Admin Token 是否已配置')
@@ -547,6 +618,7 @@ class MainWindow(QMainWindow):
                 self.cosplayer_edit.setFocus()
 
     def _on_archive_dropped(self, path: Path):
+        self._auto_gen += 1  # 新包：作废之前可能还在跑的翻译 worker 回调
         self.archive_path = path
 
         # 自动解析 coser / 角色名
@@ -555,26 +627,130 @@ class MainWindow(QMainWindow):
         # 自动填字段（仅在为空时填，避免覆盖用户已输入的内容）
         if not self.title_zh_edit.text().strip():
             self.title_zh_edit.setText(parsed.clean_title or path.stem)
+        # cosplayer：先在列表中模糊匹配最相似的规范名，匹配不到则回退解析名
         if not self.cosplayer_edit.text().strip() and parsed.cosplayer:
-            self.cosplayer_edit.setText(parsed.cosplayer)
+            matched = self._match_coser(parsed.cosplayer)
+            self.cosplayer_edit.setText(matched or parsed.cosplayer)
         if not self.character_edit.text().strip() and parsed.character:
             self.character_edit.setText(parsed.character)
         if not self.slug_edit.text().strip():
             # 异步：中文标题 → 翻译成英文 → slugify（与后台 autoSlug 一致）
             self._request_auto_slug()
+        # 异步：中文/英文标题 → 翻译成日文，自动填充日文标题
+        self._request_auto_ja()
 
         self._refresh_status()
 
     def _on_select_archive(self):
-        f, _ = QFileDialog.getOpenFileName(
+        fs, _ = QFileDialog.getOpenFileNames(
             self, '选择压缩包', '',
             '压缩包 (*.zip *.rar *.7z);;所有文件 (*.*)',
         )
-        if f:
-            self._on_archive_dropped(Path(f))
+        if fs:
+            for f in fs:
+                self._archive_queue.append(Path(f))
+            self._log('info', f'已加入队列 {len(fs)} 个（待处理共 {len(self._archive_queue)}）')
+            self._update_queue_label()
+            self._process_queue_head()
 
-    def _request_auto_slug(self):
+    def _on_archives_dropped(self, paths: list[Path]):
+        """拖入多个压缩包：全部入队，再按顺序驱动处理。"""
+        added = 0
+        for p in paths:
+            self._archive_queue.append(p)
+            added += 1
+        if added:
+            self._log('info', f'已加入队列 {added} 个（待处理共 {len(self._archive_queue)}）')
+            self._update_queue_label()
+            self._process_queue_head()
+
+    def _process_queue_head(self, skip_current: bool = False):
+        """按队列顺序把队首压缩包载入表单，等待用户点击「一键发布」。"""
+        # 正在发布中：等 _on_done 完成后会再次驱动，这里不抢
+        if self.worker is not None and self.worker.isRunning():
+            return
+        if skip_current:
+            self._reset_form()
+        # 当前表单已载入一个待发布的压缩包（且非跳过）：保持不动，等发布完再处理
+        if self.archive_path is not None and not skip_current:
+            self._update_queue_label()
+            return
+        if not self._archive_queue:
+            self._update_queue_label()
+            return
+        path = self._archive_queue.pop(0)
+        self._on_archive_dropped(path)
+        self._update_queue_label()
+
+    # 发布默认由用户点击「一键发布」触发；批量模式下用户点一次后自动连续发布。
+
+    def _continue_batch(self):
+        """批量模式：等 slug / 日文标题翻译就绪后自动发布当前包。"""
+        self._batch_publish_when_slug_ready = True
+        if not self.slug_edit.text().strip():
+            self._request_auto_slug()
+        else:
+            self._batch_publish_when_slug_ready = False
+            self._maybe_batch_publish()
+        if not self.title_ja_edit.text().strip():
+            self._batch_publish_when_ja_ready = True
+            self._request_auto_ja()
+
+    def _maybe_batch_publish(self):
+        """slug 与 ja 翻译均就绪后，自动发布当前包（批量模式）。"""
+        if self._batch_publish_when_slug_ready or self._batch_publish_when_ja_ready:
+            return  # 仍有翻译在跑，等回调
+        self._on_publish()
+
+    def _advance_or_finish_batch(self):
+        """批量模式：载入下一个并继续；队列空则结束批量。"""
+        if self._archive_queue:
+            self._process_queue_head()
+            self._continue_batch()
+        else:
+            self._batch_mode = False
+            QMessageBox.information(self, '完成', '✅ 批量发布已全部完成')
+
+    def _update_queue_label(self):
+        n = len(self._archive_queue)
+        if n:
+            self.queue_label.setText(f'待处理队列：{n}')
+            self.next_btn.setEnabled(True)
+        else:
+            self.queue_label.setText('队列：空')
+            self.next_btn.setEnabled(False)
+
+    def _reset_form(self):
+        """清空表单所有字段，准备接收下一个压缩包。"""
+        for edit in (self.slug_edit, self.title_zh_edit, self.title_en_edit,
+                     self.title_ja_edit, self.cosplayer_edit, self.character_edit,
+                     self.series_edit, self.tags_edit, self.download_url_edit):
+            edit.clear()
+        for ed in (self.desc_zh_edit, self.desc_en_edit, self.desc_ja_edit):
+            ed.clear()
+        self.price_edit.setText('0')
+        for i in range(self.category_list.count()):
+            item = self.category_list.item(i)
+            if item is not None:
+                item.setCheckState(Qt.Unchecked)
+        self.rating_combo.setCurrentIndex(0)
+        self.premium_cb.setChecked(False)
+        self.archive_path = None
+        # 注意：不在此清除 _batch_mode，批量开关由发布流程显式管理
+        self._batch_publish_when_slug_ready = False
+        self._batch_publish_when_ja_ready = False
+        if self.worker is not None and not self.worker.isRunning():
+            self.worker = None
+        self.progress_bar.setValue(0)
+        self.progress_label.setText('就绪')
+        self.step_label.setText('待开始')
+        self.status_lbl.setText('就绪')
+        self._refresh_status()
+
+    def _request_auto_slug(self, gen: int | None = None):
         """启动后台 _SlugWorker 生成 slug。会跳过正在跑的旧 worker。"""
+        if gen is None:
+            gen = self._auto_gen
         if self._slug_worker and self._slug_worker.isRunning():
             return  # 已有任务在跑，避免重复请求
         zh = self.title_zh_edit.text().strip()
@@ -583,13 +759,23 @@ class MainWindow(QMainWindow):
         if not zh and not en and not ja:
             return
         self._log('info', '正在生成 Slug（必要时调用翻译）...')
-        self._slug_worker = _SlugWorker(zh, en, ja, self)
+        self._slug_worker = _SlugWorker(zh, en, ja, self, gen)
         self._slug_worker.slug_ready.connect(self._on_slug_ready)
         self._slug_worker.start()
 
-    def _on_slug_ready(self, slug: str, en_title: str):
+    def _on_slug_ready(self, slug: str, en_title: str, gen: int = 0):
+        if gen != self._auto_gen:
+            return  # 结果已过时（已切到下一个包），忽略旧 worker 回调
         if not slug:
-            self._log('warn', 'Slug 生成失败（翻译未返回有效结果），请手动填写')
+            self._log('warn', 'Slug 生成失败（翻译未返回有效结果）')
+            if self._batch_publish_when_slug_ready:
+                self._batch_publish_when_slug_ready = False
+                self._batch_publish_when_ja_ready = False
+                if self._batch_mode:
+                    self._log('error', '跳过当前压缩包：Slug 生成失败')
+                    self._reset_form()
+                    self._update_queue_label()
+                    self._advance_or_finish_batch()
             return
         self.slug_edit.setText(slug)
         # 翻译得到的英文标题同步填入英译框（仅当为空时，避免覆盖用户输入）
@@ -597,28 +783,73 @@ class MainWindow(QMainWindow):
             self.title_en_edit.setText(en_title)
         self._log('success', f'Slug 已生成: {slug}')
         self._refresh_status()
+        if self._batch_publish_when_slug_ready:
+            self._batch_publish_when_slug_ready = False
+            self._maybe_batch_publish()
 
     def _on_gen_slug(self):
         """按钮触发：强制重新生成 slug。"""
         if self._slug_worker and self._slug_worker.isRunning():
             return
         self._request_auto_slug()
+        # 顺带补一份日文标题（若为空）
+        self._request_auto_ja()
+
+    def _request_auto_ja(self, gen: int | None = None):
+        """拖入压缩包后，若中文/英文标题存在且日文标题为空，后台翻译出日文标题。"""
+        if gen is None:
+            gen = self._auto_gen
+        if self._ja_worker and self._ja_worker.isRunning():
+            return  # 已有任务在跑，避免重复请求
+        if self.title_ja_edit.text().strip():
+            return  # 已有日文标题，不覆盖用户手填内容
+        zh = self.title_zh_edit.text().strip()
+        en = self.title_en_edit.text().strip()
+        if zh:
+            src_lang, src_text = 'zh', zh
+        elif en:
+            src_lang, src_text = 'en', en
+        else:
+            return
+        self._log('info', '正在生成日文标题（翻译）...')
+        self._ja_worker = _JaWorker(src_lang, src_text, self, gen)
+        self._ja_worker.ja_ready.connect(self._on_ja_ready)
+        self._ja_worker.start()
+
+    def _on_ja_ready(self, ja: str, gen: int = 0):
+        if gen != self._auto_gen:
+            return  # 结果已过时（已切到下一个包），忽略旧 worker 回调
+        if ja and not self.title_ja_edit.text().strip():
+            self.title_ja_edit.setText(ja)
+            self._log('success', f'日文标题已生成: {ja}')
+        self._refresh_status()
+        if self._batch_publish_when_ja_ready:
+            self._batch_publish_when_ja_ready = False
+            self._maybe_batch_publish()
 
     def _on_publish(self):
-        if not self.archive_path:
-            QMessageBox.warning(self, '提示', '请先选择压缩包')
-            return
-        if not self.slug_edit.text().strip():
-            QMessageBox.warning(self, '提示', '请填写 Slug')
-            return
-        if not self.title_zh_edit.text().strip():
-            QMessageBox.warning(self, '提示', '请填写中文标题')
-            return
+        # 首次手动点击且仍有后续队列 → 进入批量模式（之后自动连续发布，无需再点）
+        if not self._batch_mode and self._archive_queue:
+            self._batch_mode = True
         if not self.config.api_url or not self.config.api_key:
             QMessageBox.warning(self, '提示', '请先在设置中配置 Chevereto API')
             return
         if not self.config.cosplay_base_url or not self.config.cosplay_admin_token:
             QMessageBox.warning(self, '提示', '请先在设置中配置 cosplay 后台地址和 Admin Token')
+            return
+        if not self.archive_path:
+            QMessageBox.warning(self, '提示', '请先选择压缩包')
+            return
+        if not self.slug_edit.text().strip():
+            if (self.title_zh_edit.text().strip() or self.title_en_edit.text().strip()) \
+                    and not (self._slug_worker and self._slug_worker.isRunning()):
+                self._request_auto_slug()
+                QMessageBox.warning(self, '提示', '正在自动生成 Slug，请稍候片刻再点「一键发布」')
+            else:
+                QMessageBox.warning(self, '提示', '请填写 Slug')
+            return
+        if not self.title_zh_edit.text().strip():
+            QMessageBox.warning(self, '提示', '请填写中文标题')
             return
 
         try:
@@ -626,7 +857,13 @@ class MainWindow(QMainWindow):
         except ValueError:
             price = 0.0
 
-        cat_slug = self.category_combo.currentData() or ''
+        cat_slugs: list[str] = []
+        for i in range(self.category_list.count()):
+            item = self.category_list.item(i)
+            if item is not None and item.checkState() == Qt.Checked:
+                slug = item.data(Qt.UserRole)
+                if slug:
+                    cat_slugs.append(slug)
         tags = [t.strip() for t in self.tags_edit.text().split(',') if t.strip()]
         download_url = self.download_url_edit.text().strip() or None
 
@@ -641,7 +878,7 @@ class MainWindow(QMainWindow):
             cosplayer=self.cosplayer_edit.text().strip(),
             character=self.character_edit.text().strip(),
             series=self.series_edit.text().strip(),
-            categories=[cat_slug] if cat_slug else [],
+            categories=cat_slugs,
             tags=tags,
             rating=self.rating_combo.currentData(),
             price=price,
@@ -667,6 +904,13 @@ class MainWindow(QMainWindow):
         if self.worker and self.worker.isRunning():
             self.worker.stop()
             self._log('warn', '正在停止...')
+        if self._archive_queue:
+            self._log('warn', f'已清空待处理队列（{len(self._archive_queue)} 个）')
+        self._archive_queue.clear()
+        self._batch_mode = False
+        self._batch_publish_when_slug_ready = False
+        self._batch_publish_when_ja_ready = False
+        self._update_queue_label()
         self.stop_btn.setEnabled(False)
 
     def _on_settings(self):
@@ -782,11 +1026,26 @@ class MainWindow(QMainWindow):
             self.progress_label.setText('完成')
             self.step_label.setText('完成')
             self.status_lbl.setText(f'发布成功: {result}')
-            QMessageBox.information(self, '成功', f'图包已发布！\n\n{result}')
+            self._log('success', f'发布成功: {result}；队列剩余 {len(self._archive_queue)}')
+            self._reset_form()
+            self._update_queue_label()
+            if self._batch_mode:
+                # 批量模式：静默继续下一个，不弹窗
+                self._advance_or_finish_batch()
+            else:
+                QMessageBox.information(self, '成功', f'图包已发布！\n\n{result}')
         else:
             self.progress_label.setText('失败')
             self.status_lbl.setText(f'失败: {error[:80]}')
-            QMessageBox.critical(self, '失败', error or '未知错误')
+            self._log('error', f'发布失败: {error[:80]}')
+            if self._batch_mode:
+                # 批量模式：跳过失败项继续下一个
+                self._log('error', '发布失败，跳过此包继续')
+                self._reset_form()
+                self._update_queue_label()
+                self._advance_or_finish_batch()
+            else:
+                QMessageBox.critical(self, '失败', error or '未知错误')
         self._refresh_status()
 
     def _log(self, level: str, msg: str):

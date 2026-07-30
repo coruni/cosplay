@@ -13,7 +13,7 @@ interface FeaturedSectionProps {
 }
 
 /**
- * FeaturedSection — showcases top 6 galleries below the hero.
+ * FeaturedSection — showcases the top featured galleries below the hero.
  *
  * Design:
  * - Section header with "Featured Galleries" title and a "View All" link

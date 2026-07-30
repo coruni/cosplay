@@ -52,7 +52,7 @@ export default async function HomePage({ params }: Props) {
 
   const showNsfw = await getShowNsfwServer();
   const [featuredGalleries, categories] = await Promise.all([
-    getFeaturedGalleries(6, showNsfw),
+    getFeaturedGalleries(8, showNsfw),
     getAllCategories(),
   ]);
 
