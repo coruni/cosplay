@@ -91,6 +91,17 @@ export function GalleryDetailClient({
   const lightboxSwiped = useRef(false);
   const [showAgeGate, setShowAgeGate] = useState(false);
 
+  // 已加载完成的图片下标集合，用于淡入（首屏优先 + 其余懒加载 + 深色占位）。
+  const [loadedIdx, setLoadedIdx] = useState<Set<number>>(() => new Set());
+  const markLoaded = useCallback((i: number) => {
+    setLoadedIdx((prev) => {
+      if (prev.has(i)) return prev;
+      const nextSet = new Set(prev);
+      nextSet.add(i);
+      return nextSet;
+    });
+  }, []);
+
   const isNsfw = gallery.rating === 'nsfw';
   // `isGated` = the gallery is restricted to subscribers (members-only) or buyers.
   //   - isPaid (price > 0): non-members may purchase it individually; members view free.
@@ -102,8 +113,12 @@ export function GalleryDetailClient({
   const canViewAll = !isGated || isOwned || localUnlock || membershipActive;
   const previewCount = 3;
   const allImages = gallery.images;
-  const visibleImages = canViewAll ? allImages : allImages.slice(0, previewCount);
-  const lockedImages = canViewAll ? [] : allImages.slice(previewCount);
+  // 锁定判断基于下标（而非 URL 值查找）：images 里若出现重复 URL，
+  // 按值查找会把本应可见的图误判为锁定、并导致 React key 冲突。
+  const isLockedIndex = useCallback(
+    (i: number) => !canViewAll && i >= previewCount,
+    [canViewAll, previewCount]
+  );
 
   // When the gallery has an external download link (网盘/外部链接), the download
   // button jumps out to that source; otherwise it bundles the on-site images.
@@ -240,12 +255,11 @@ export function GalleryDetailClient({
   const openLightbox = useCallback(
     (index: number) => {
       // Don't open lightbox for locked images
-      const imagePath = allImages[index];
-      if (lockedImages.includes(imagePath)) return;
+      if (isLockedIndex(index)) return;
       setLightboxIndex(index);
       setLightboxOpen(true);
     },
-    [allImages, lockedImages]
+    [isLockedIndex]
   );
 
   const closeLightbox = useCallback(() => {
@@ -255,22 +269,22 @@ export function GalleryDetailClient({
   const lightboxPrev = useCallback(() => {
     setLightboxIndex((prev) => {
       let next = prev - 1;
-      while (next >= 0 && lockedImages.includes(allImages[next])) next--;
+      while (next >= 0 && isLockedIndex(next)) next--;
       if (next < 0) next = allImages.length - 1;
-      while (next >= 0 && lockedImages.includes(allImages[next])) next--;
+      while (next >= 0 && isLockedIndex(next)) next--;
       return next;
     });
-  }, [allImages, lockedImages]);
+  }, [allImages, isLockedIndex]);
 
   const lightboxNext = useCallback(() => {
     setLightboxIndex((prev) => {
       let next = prev + 1;
-      while (next < allImages.length && lockedImages.includes(allImages[next])) next++;
+      while (next < allImages.length && isLockedIndex(next)) next++;
       if (next >= allImages.length) next = 0;
-      while (next < allImages.length && lockedImages.includes(allImages[next])) next++;
+      while (next < allImages.length && isLockedIndex(next)) next++;
       return next;
     });
-  }, [allImages, lockedImages]);
+  }, [allImages, isLockedIndex]);
 
   // Keyboard navigation for lightbox — attach to document so it works without
   // the dialog needing focus, and lock background scroll while it's open.
@@ -545,12 +559,12 @@ export function GalleryDetailClient({
           )}
         >
           {allImages.map((image, index) => {
-            const isLocked = lockedImages.includes(image);
-            const isVisible = visibleImages.includes(image);
+            const isLocked = isLockedIndex(index);
+            const isVisible = canViewAll || index < previewCount;
 
             return (
               <div
-                key={image}
+                key={`${index}-${image}`}
                 className={cn(
                   'relative aspect-[3/4] rounded-xl overflow-hidden',
                   'bg-[#262633] border border-white/[0.06]',
@@ -564,8 +578,13 @@ export function GalleryDetailClient({
                     alt={`Gallery image ${index + 1}`}
                     fill
                     sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-                    className="object-cover"
+                    className={cn(
+                      'object-cover transition-opacity duration-500',
+                      loadedIdx.has(index) ? 'opacity-100' : 'opacity-0'
+                    )}
                     unoptimized
+                    priority={!isLocked && index < 2}
+                    onLoad={() => markLoaded(index)}
                   />
 
                   {/* Locked overlay */}

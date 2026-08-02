@@ -17,6 +17,18 @@ from config import AppConfig
 from image_utils import is_image, is_video, is_media
 
 
+def natural_sort_key(path: Path) -> list:
+    """自然排序 key：把路径中的数字段按数值比较，使 1,2,10,11 而非 1,10,11,2。
+
+    对完整路径（含目录名）排序，因此不同子目录仍按目录名分组，组内按数字自然序。
+    修复旧字典序把 slug-002（原 10.jpg）排到 slug-010（原 2.jpg）之前的错乱。
+    """
+    return [
+        int(part) if part.isdigit() else part.lower()
+        for part in re.split(r'(\d+)', str(path))
+    ]
+
+
 SUPPORTED_ARCHIVES = {'.zip', '.rar', '.7z'}
 
 # 分卷命名模式（按优先级匹配）
@@ -24,6 +36,8 @@ _RAR_PART_RE = re.compile(r'^(?P<stem>.+)\.part(?P<idx>\d+)\.rar$', re.IGNORECAS
 _7Z_PART_RE = re.compile(r'^(?P<stem>.+)\.7z\.(?P<idx>\d{3,})$', re.IGNORECASE)
 _GENERIC_PART_RE = re.compile(r'^(?P<stem>.+)\.(?P<idx>\d{3,})$', re.IGNORECASE)
 _ZIP_PART_RE = re.compile(r'^z(?P<idx>\d{2,})$', re.IGNORECASE)
+# 标准 zip -s 命名：<base>.z01 / <base>.z02 / ... / <base>.zip（带前缀）
+_ZIP_SPLIT_RE = re.compile(r'^(?P<stem>.+)\.z(?P<idx>\d{2,})$', re.IGNORECASE)
 
 
 def is_archive(path: Path) -> bool:
@@ -40,8 +54,11 @@ def is_archive(path: Path) -> bool:
     # .NNN（通用分卷）
     if _GENERIC_PART_RE.match(name):
         return True
-    # zNN 形式（zip 分卷的 .z01/.z02 ...）
+    # zNN 形式（zip 分卷的 .z01/.z02 ... 无前缀，纯文件名 z01）
     if _ZIP_PART_RE.match(path.stem) and path.suffix.lower() == '':
+        return True
+    # 带前缀的 zip 分卷：mypackage.z01 / mypackage.z02 ...（标准 zip -s 命名）
+    if _ZIP_SPLIT_RE.match(name):
         return True
     return False
 
@@ -65,6 +82,11 @@ def _resolve_main_volume(path: Path) -> Path:
     m = _7Z_PART_RE.match(name)
     if m:
         return path.with_name(f"{m.group('stem')}.7z.001")
+
+    # 带前缀的 zip 分卷：mypackage.z01 → mypackage.zip
+    m = _ZIP_SPLIT_RE.match(name)
+    if m:
+        return path.with_name(f"{m.group('stem')}.zip")
 
     # zNN 文件（无后缀，stem 形如 z01）
     if _ZIP_PART_RE.match(path.stem) and path.suffix.lower() == '':
@@ -93,6 +115,9 @@ def _archive_stem_for_extract(path: Path) -> str:
     m = _7Z_PART_RE.match(name)
     if m:
         return m.group('stem')
+    m = _ZIP_SPLIT_RE.match(name)
+    if m:
+        return m.group('stem')
     if _ZIP_PART_RE.match(path.stem) and path.suffix.lower() == '':
         # zip 分卷，主卷是 xxx.zip
         parent = path.parent
@@ -110,13 +135,37 @@ def _archive_stem_for_extract(path: Path) -> str:
 def _combine_zip_split(main_zip: Path, dest: Path) -> Path:
     """把 .z01 + .z02 + ... + .zip 合并为单个 zip 文件（用于 zipfile 解压）。
 
-    ZIP 分卷规范：.z01, .z02, ..., .zNN, .zip（主卷是最后一卷，包含中央目录）。
-    7-Zip 生成的顺序切分可能 .zip 在前，这里两种都尝试。
+    支持两种命名：
+    - 标准 zip -s：<base>.z01, <base>.z02, ..., <base>.zip（.zip 为最后一卷，含中央目录）
+    - 无前缀 / 本工具自产：z01, z02, ...（无扩展名），或 .zip 在前（顺序切分）
     """
     parent = main_zip.parent
     stem = main_zip.stem
 
-    # 收集所有 zNN 分卷
+    # 1) 标准 zip -s 命名：<base>.zNN
+    pref = []
+    for p in parent.iterdir():
+        if not p.is_file():
+            continue
+        m = _ZIP_SPLIT_RE.match(p.name)
+        if m and m.group('stem').lower() == stem.lower():
+            try:
+                pref.append((int(m.group('idx')), p))
+            except ValueError:
+                pass
+    pref.sort(key=lambda x: x[0])
+    if pref:
+        # 标准规范：z01..zNN 在前，.zip（主卷）在最后
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        with dest.open('wb') as out:
+            for _, p in pref:
+                with p.open('rb') as f:
+                    shutil.copyfileobj(f, out, length=1024 * 1024)
+            with main_zip.open('rb') as f:
+                shutil.copyfileobj(f, out, length=1024 * 1024)
+        return dest
+
+    # 2) 无前缀 / 本工具自产格式（保持原有逻辑）
     parts = []
     for p in parent.iterdir():
         if not p.is_file():
@@ -136,10 +185,6 @@ def _combine_zip_split(main_zip: Path, dest: Path) -> Path:
 
     dest.parent.mkdir(parents=True, exist_ok=True)
     with dest.open('wb') as out:
-        # 标准分卷：z01, z02, ..., zNN 在前，.zip 在后
-        # 顺序切分：.zip 在前，.z01, .z02 在后
-        # 试标准规范：先 zNN 后 .zip
-        # 检测：如果 .zip 文件大小 < 任意 zNN，可能是 .zip 在最后
         zip_size = main_zip.stat().st_size
         max_part_size = max(p.stat().st_size for _, p in parts) if parts else 0
 
@@ -323,9 +368,11 @@ def extract_archive(archive_path: Path, dest_dir: Path, passwords: list[str] | N
 
     # ZIP 分卷：合并后用 zipfile 解压
     if main_volume.suffix.lower() == '.zip':
-        # 检查同目录是否有 .zNN 分卷
+        # 检查同目录是否有 .zNN 分卷（无前缀 z01，或标准 zip -s 的 <base>.zNN）
         has_split = any(
-            _ZIP_PART_RE.match(p.stem) and p.suffix.lower() == ''
+            (p.suffix.lower() == '' and _ZIP_PART_RE.match(p.stem))
+            or (_ZIP_SPLIT_RE.match(p.name)
+                and _ZIP_SPLIT_RE.match(p.name).group('stem').lower() == main_volume.stem.lower())
             for p in main_volume.parent.iterdir() if p.is_file()
         )
         if has_split:
@@ -381,8 +428,11 @@ def extract_archive(archive_path: Path, dest_dir: Path, passwords: list[str] | N
 
 
 def list_files(root: Path) -> list[Path]:
-    """列出目录下所有文件（递归，相对路径），按文件名排序。"""
-    files = sorted(p for p in root.rglob('*') if p.is_file())
+    """列出目录下所有文件（递归，相对路径），按文件名自然排序。"""
+    files = sorted(
+        (p for p in root.rglob('*') if p.is_file()),
+        key=natural_sort_key,
+    )
     return files
 
 
@@ -431,8 +481,14 @@ def normalize_structure(root: Path, slug: str) -> None:
     - 图片统一重命名为 slug-001.jpg / slug-002.jpg ...
     - 视频保留原扩展名，命名为 slug-vid-001.mp4 / slug-vid-002.mov ...
     """
-    images = sorted(p for p in root.rglob('*') if p.is_file() and is_image(p))
-    videos = sorted(p for p in root.rglob('*') if p.is_file() and is_video(p))
+    images = sorted(
+        (p for p in root.rglob('*') if p.is_file() and is_image(p)),
+        key=natural_sort_key,
+    )
+    videos = sorted(
+        (p for p in root.rglob('*') if p.is_file() and is_video(p)),
+        key=natural_sort_key,
+    )
 
     if not images and not videos:
         return

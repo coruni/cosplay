@@ -235,8 +235,14 @@ class BotHandler:
         # ───────── ③ 规范化 ─────────
         notify('info', f'③ 规范化结构（slug={slug}）...')
         archive_utils.normalize_structure(extract_dir, slug)
-        images_after = sorted(p for p in extract_dir.rglob('*') if p.is_file() and is_image(p))
-        videos_after = sorted(p for p in extract_dir.rglob('*') if p.is_file() and is_video(p))
+        images_after = sorted(
+            (p for p in extract_dir.rglob('*') if p.is_file() and is_image(p)),
+            key=archive_utils.natural_sort_key,
+        )
+        videos_after = sorted(
+            (p for p in extract_dir.rglob('*') if p.is_file() and is_video(p)),
+            key=archive_utils.natural_sort_key,
+        )
         notify('success', f'规范化后: {len(images_after)} 图 / {len(videos_after)} 视频')
 
         # ───────── ④ 重新打包 ─────────
