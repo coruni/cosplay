@@ -14,6 +14,10 @@ interface Props {
   searchParams: Promise<{
     query?: string;
     category?: string;
+    cosplayer?: string;
+    character?: string;
+    series?: string;
+    tag?: string;
     sort?: string;
     page?: string;
   }>;
@@ -60,6 +64,10 @@ export default async function GalleryPage({ params, searchParams }: Props) {
   // Parse search params
   const query = sp.query ?? '';
   const category = sp.category ?? '';
+  const cosplayer = sp.cosplayer ?? '';
+  const character = sp.character ?? '';
+  const series = sp.series ?? '';
+  const tag = sp.tag ?? '';
   const sort = (sp.sort as SortOption) || 'newest';
   const page = Math.max(1, parseInt(sp.page ?? '1', 10) || 1);
 
@@ -71,6 +79,10 @@ export default async function GalleryPage({ params, searchParams }: Props) {
     getGalleries({
       query: query || undefined,
       category: category || undefined,
+      cosplayer: cosplayer || undefined,
+      character: character || undefined,
+      series: series || undefined,
+      tag: tag || undefined,
       rating: showNsfw ? 'all' : 'sfw',
       sort,
       page,
@@ -110,6 +122,10 @@ export default async function GalleryPage({ params, searchParams }: Props) {
             currentCategory={category}
             currentSort={sort}
             currentQuery={query}
+            currentCosplayer={cosplayer}
+            currentCharacter={character}
+            currentSeries={series}
+            currentTag={tag}
           />
         </div>
       </div>

@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { routing } from '@/i18n/routing';
 import { notFound } from 'next/navigation';
 import Image from 'next/image';
+import Link from 'next/link';
 import {
   UserIcon,
   SparklesIcon,
@@ -241,9 +242,18 @@ export default async function GalleryDetailPage({ params }: Props) {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">{t('cosplayer')}</p>
-                  <p className="text-sm font-semibold text-foreground">
-                    {gallery.cosplayer}
-                  </p>
+                  {gallery.cosplayer ? (
+                    <Link
+                      href={`${backHref}?cosplayer=${encodeURIComponent(gallery.cosplayer)}`}
+                      className="text-sm font-semibold text-foreground hover:text-[#00d4ff] hover:underline underline-offset-2 transition-colors"
+                    >
+                      {gallery.cosplayer}
+                    </Link>
+                  ) : (
+                    <p className="text-sm font-semibold text-foreground">
+                      {gallery.cosplayer}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -254,9 +264,18 @@ export default async function GalleryDetailPage({ params }: Props) {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">{t('character')}</p>
-                  <p className="text-sm font-semibold text-foreground">
-                    {gallery.character}
-                  </p>
+                  {gallery.character ? (
+                    <Link
+                      href={`${backHref}?character=${encodeURIComponent(gallery.character)}`}
+                      className="text-sm font-semibold text-foreground hover:text-[#ff2d78] hover:underline underline-offset-2 transition-colors"
+                    >
+                      {gallery.character}
+                    </Link>
+                  ) : (
+                    <p className="text-sm font-semibold text-foreground">
+                      {gallery.character}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -267,9 +286,18 @@ export default async function GalleryDetailPage({ params }: Props) {
                 </div>
                 <div>
                   <p className="text-xs text-muted-foreground">{t('series')}</p>
-                  <p className="text-sm font-semibold text-foreground">
-                    {gallery.series}
-                  </p>
+                  {gallery.series ? (
+                    <Link
+                      href={`${backHref}?series=${encodeURIComponent(gallery.series)}`}
+                      className="text-sm font-semibold text-foreground hover:text-[#a855f7] hover:underline underline-offset-2 transition-colors"
+                    >
+                      {gallery.series}
+                    </Link>
+                  ) : (
+                    <p className="text-sm font-semibold text-foreground">
+                      {gallery.series}
+                    </p>
+                  )}
                 </div>
               </div>
 
@@ -294,24 +322,26 @@ export default async function GalleryDetailPage({ params }: Props) {
                 {t('category')}:
               </span>
               {gallery.categories.map((cat) => (
-                <span
+                <Link
                   key={cat}
-                  className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-white/[0.04] border border-white/[0.06] text-muted-foreground"
+                  href={`${backHref}?category=${cat}`}
+                  className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-white/[0.04] border border-white/[0.06] text-muted-foreground hover:bg-white/[0.08] hover:border-white/[0.12] hover:text-foreground transition-colors"
                 >
                   {tCat(cat as Parameters<typeof tCat>[0])}
-                </span>
+                </Link>
               ))}
             </div>
 
             {/* Tags */}
             <div className="flex flex-wrap items-center gap-2">
               {gallery.tags.map((tag) => (
-                <span
+                <Link
                   key={tag}
-                  className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-[#00d4ff]/5 text-[#00d4ff]/80 border border-[#00d4ff]/10"
+                  href={`${backHref}?tag=${encodeURIComponent(tag)}`}
+                  className="inline-flex px-2.5 py-1 rounded-full text-xs font-medium bg-[#00d4ff]/5 text-[#00d4ff]/80 border border-[#00d4ff]/10 hover:bg-[#00d4ff]/15 transition-colors"
                 >
                   #{tag}
-                </span>
+                </Link>
               ))}
             </div>
           </div>

@@ -40,6 +40,10 @@ export async function getGalleries(filter: GalleryFilter = {}): Promise<Paginate
   const {
     query,
     category,
+    cosplayer,
+    character,
+    series,
+    tag,
     rating = 'all',
     sort = 'newest',
     page = 1,
@@ -73,6 +77,23 @@ export async function getGalleries(filter: GalleryFilter = {}): Promise<Paginate
 
   if (category && category !== 'all') {
     where.categories = { has: category };
+  }
+
+  // Precise-match filters driven by detail-page links (cosplayer / character /
+  // series / tag). Case-insensitive equality for the free-text fields so a
+  // click on "Yukian" surfaces exactly that coser's sets; `tag` matches a
+  // single array element (AND-combines with the query OR above).
+  if (cosplayer) {
+    where.cosplayer = { equals: cosplayer, mode: 'insensitive' };
+  }
+  if (character) {
+    where.character = { equals: character, mode: 'insensitive' };
+  }
+  if (series) {
+    where.series = { equals: series, mode: 'insensitive' };
+  }
+  if (tag) {
+    where.tags = { has: tag };
   }
 
   if (rating !== 'all') {

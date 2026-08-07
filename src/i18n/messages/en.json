@@ -39,7 +39,9 @@
     "sortBy": "Sort",
     "sortNewest": "Newest",
     "sortPopular": "Most Popular",
-    "sortPriceLow": "Price: Low to High"
+    "sortPriceLow": "Price: Low to High",
+    "activeFilters": "Filtered by",
+    "removeFilter": "Remove filter"
   },
   "detail": {
     "cosplayer": "Cosplayer",

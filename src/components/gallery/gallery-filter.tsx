@@ -21,6 +21,10 @@ interface GalleryFilterProps {
   currentCategory?: string;
   currentSort?: SortOption;
   currentQuery?: string;
+  currentCosplayer?: string;
+  currentCharacter?: string;
+  currentSeries?: string;
+  currentTag?: string;
 }
 
 /**
@@ -39,8 +43,13 @@ export function GalleryFilter({
   currentCategory,
   currentSort = 'newest',
   currentQuery = '',
+  currentCosplayer,
+  currentCharacter,
+  currentSeries,
+  currentTag,
 }: GalleryFilterProps) {
   const t = useTranslations('gallery');
+  const tDetail = useTranslations('detail');
   const locale = useLocale();
   const router = useRouter();
   const shouldReduceMotion = useReducedMotion();
@@ -143,6 +152,34 @@ export function GalleryFilter({
 
   const currentSortLabel =
     sortOptions.find((o) => o.value === currentSort)?.label ?? t('sortNewest');
+
+  // Active "deep" filters (set from a detail page link or a prior click).
+  // Rendered as removable chips above the category row.
+  const activeChips = [
+    currentCosplayer
+      ? { key: 'cosplayer', label: tDetail('cosplayer'), value: currentCosplayer }
+      : null,
+    currentCharacter
+      ? { key: 'character', label: tDetail('character'), value: currentCharacter }
+      : null,
+    currentSeries
+      ? { key: 'series', label: tDetail('series'), value: currentSeries }
+      : null,
+    currentTag
+      ? { key: 'tag', label: tDetail('tags'), value: currentTag }
+      : null,
+    currentCategory && currentCategory !== 'all'
+      ? {
+          key: 'category',
+          label: tDetail('category'),
+          value: localizedCategoryName(
+            categories.find((c) => c.slug === currentCategory)?.name ?? null,
+            locale,
+            currentCategory
+          ),
+        }
+      : null,
+  ].filter(Boolean) as { key: string; label: string; value: string }[];
 
   return (
     <motion.div
@@ -264,6 +301,34 @@ export function GalleryFilter({
           )}
         </div>
       </div>
+
+      {/* Active deep filters (removable) */}
+      {activeChips.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground shrink-0">
+            {t('activeFilters')}
+          </span>
+          {activeChips.map((f) => (
+            <button
+              key={f.key}
+              type="button"
+              onClick={() => updateParams({ [f.key]: undefined })}
+              className={cn(
+                'inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium',
+                'bg-[#00d4ff]/10 text-[#00d4ff] border border-[#00d4ff]/30',
+                'hover:bg-[#00d4ff]/20 transition-colors duration-200',
+                'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#00d4ff]/40'
+              )}
+              style={{ minHeight: 36 }}
+              aria-label={`${t('removeFilter')} ${f.label}: ${f.value}`}
+            >
+              <span className="opacity-60">{f.label}:</span>
+              <span className="max-w-[10rem] truncate">{f.value}</span>
+              <XIcon className="size-3 ml-0.5 opacity-70" aria-hidden="true" />
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Category chips */}
       <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide -mx-1 px-1">

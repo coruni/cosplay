@@ -39,7 +39,9 @@
     "sortBy": "排序",
     "sortNewest": "最新发布",
     "sortPopular": "最受欢迎",
-    "sortPriceLow": "价格从低到高"
+    "sortPriceLow": "价格从低到高",
+    "activeFilters": "当前筛选",
+    "removeFilter": "移除筛选"
   },
   "detail": {
     "cosplayer": "Cosplayer",

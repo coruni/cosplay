@@ -43,6 +43,10 @@ export interface Gallery {
 export interface GalleryFilter {
   query?: string;
   category?: string;
+  cosplayer?: string;
+  character?: string;
+  series?: string;
+  tag?: string;
   rating?: Rating | 'all';
   sort?: SortOption;
   page?: number;
