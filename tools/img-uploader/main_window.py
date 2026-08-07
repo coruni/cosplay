@@ -8,10 +8,10 @@ from PyQt5.QtWidgets import (
     QFileDialog, QLabel, QFrame, QProgressBar, QMessageBox,
     QLineEdit, QCheckBox, QPlainTextEdit, QSplitter, QComboBox,
     QSizePolicy, QScrollArea, QDialog, QCompleter,
-    QListWidget, QListWidgetItem,
+    QListWidget, QListWidgetItem, QGridLayout, QDesktop,
 )
-from PyQt5.QtCore import Qt, QSize, QStringListModel, QThread, pyqtSignal
-from PyQt5.QtGui import QFont, QColor, QTextCursor, QDragEnterEvent, QDropEvent
+from PyQt5.QtCore import Qt, QSize, QStringListModel, QThread, pyqtSignal, QUrl
+from PyQt5.QtGui import QFont, QColor, QTextCursor, QDragEnterEvent, QDropEvent, QImage, QPixmap
 
 from config import AppConfig
 from gallery_publisher import (
@@ -25,6 +25,56 @@ from series_dialog import SeriesListDialog, CharacterListDialog
 from archive_utils import is_archive
 from title_parser import parse_archive_title
 import styles
+
+
+class _PreviewWorker(QThread):
+    """后台解压压缩包并列出图片，供右侧预览面板使用。"""
+    finished = pyqtSignal(int, list, int, int, object)  # gen, image_paths, video_count, total, extract_dir
+    error = pyqtSignal(int, str)
+
+    def __init__(self, gen: int, archive_path: Path, config):
+        super().__init__()
+        self.gen = gen
+        self.archive_path = archive_path
+        self.config = config
+
+    def run(self):
+        try:
+            import archive_utils
+            from image_utils import is_image, is_video
+            cfg = self.config
+            preview_root = cfg.temp_path / '_preview'
+            preview_root.mkdir(parents=True, exist_ok=True)
+            extract_dir = archive_utils.extract_archive(
+                self.archive_path, preview_root, cfg.archive_passwords
+            )
+            all_files = archive_utils.list_files(extract_dir)
+            image_files = sorted(
+                (p for p in all_files if is_image(p)),
+                key=archive_utils.natural_sort_key,
+            )
+            video_files = [p for p in all_files if is_video(p)]
+            self.finished.emit(
+                self.gen, image_files, len(video_files), len(all_files), extract_dir
+            )
+        except Exception as e:
+            self.error.emit(self.gen, str(e))
+
+
+class _PreviewThumb(QLabel):
+    """可点击打开原图的预览缩略图。"""
+    clicked = pyqtSignal(object)
+
+    def __init__(self, path):
+        super().__init__()
+        self._path = path
+        self.setCursor(Qt.PointingHandCursor)
+        self.setAlignment(Qt.AlignCenter)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.clicked.emit(self._path)
+        super().mousePressEvent(event)
 
 
 STEP_LABELS = {
@@ -137,12 +187,16 @@ class MainWindow(QMainWindow):
         self._bot_handler = None  # BotHandler
         self._archive_queue: list[Path] = []  # 待顺序处理的压缩包队列
         self._auto_gen = 0  # 代次令牌：每载入新压缩包自增，旧 worker 回调 gen 不匹配则忽略
+        self._preview_gen = 0  # 预览线程代次令牌
+        self._preview_thread: _PreviewWorker | None = None
+        self._preview_extract_dir: Path | None = None  # 预览已解压目录，发布时复用避免重复解压
+        self._preview_archive_path: Path | None = None  # 该解压目录对应的压缩包
         self._batch_mode = False  # 批量模式：用户点一次「一键发布」后自动连续发布剩余队列
         self._batch_publish_when_slug_ready = False  # 批量模式下 slug 翻译完即自动发布
         self._batch_publish_when_ja_ready = False  # 批量模式下 ja 翻译完即自动发布
 
         self.setWindowTitle('CosHub Publisher')
-        self.resize(960, 760)
+        self.resize(1180, 780)
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.setObjectName('MainWindow')
 
@@ -200,7 +254,16 @@ class MainWindow(QMainWindow):
         body.addWidget(self._build_log_section())
 
         body.setSizes([440, 320])
-        main_layout.addWidget(body, 1)
+
+        # 水平分隔：左列 = 原 body（表单 + 日志），右列 = 图片预览
+        hsplit = QSplitter(Qt.Horizontal)
+        hsplit.setObjectName('mainHSplitter')
+        hsplit.setHandleWidth(1)
+        hsplit.setChildrenCollapsible(False)
+        hsplit.addWidget(body)
+        hsplit.addWidget(self._build_preview_panel())
+        hsplit.setSizes([760, 420])
+        main_layout.addWidget(hsplit, 1)
 
         main_layout.addWidget(self._build_status_bar())
 
@@ -555,6 +618,117 @@ class MainWindow(QMainWindow):
         lay.addWidget(self.host_lbl)
         return bar
 
+    # ─────────────────── 右侧图片预览面板 ───────────────────
+
+    def _build_preview_panel(self) -> QWidget:
+        panel = QWidget()
+        panel.setObjectName('previewPanel')
+        lay = QVBoxLayout(panel)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(0)
+
+        header = QFrame()
+        header.setObjectName('previewHeader')
+        header.setFixedHeight(40)
+        hlay = QHBoxLayout(header)
+        hlay.setContentsMargins(12, 0, 12, 0)
+        title = QLabel('图片预览')
+        title.setObjectName('sectionTitle')
+        title.setFont(QFont('Segoe UI', 11, QFont.Bold))
+        hlay.addWidget(title)
+        hlay.addStretch()
+        self.preview_count_lbl = QLabel('')
+        self.preview_count_lbl.setObjectName('dropSubHint')
+        hlay.addWidget(self.preview_count_lbl)
+        lay.addWidget(header)
+
+        self.preview_scroll = QScrollArea()
+        self.preview_scroll.setWidgetResizable(True)
+        self.preview_scroll.setFrameShape(QFrame.NoFrame)
+        self.preview_scroll.setObjectName('previewScroll')
+
+        self.preview_viewport = QWidget()
+        self.preview_viewport.setObjectName('previewViewport')
+        self.preview_grid = QGridLayout(self.preview_viewport)
+        self.preview_grid.setContentsMargins(10, 10, 10, 10)
+        self.preview_grid.setSpacing(8)
+        self.preview_scroll.setWidget(self.preview_viewport)
+
+        self.preview_placeholder = QLabel('拖入压缩包后在此预览图片')
+        self.preview_placeholder.setObjectName('dropSubHint')
+        self.preview_placeholder.setAlignment(Qt.AlignCenter)
+        self.preview_grid.addWidget(self.preview_placeholder, 0, 0)
+
+        lay.addWidget(self.preview_scroll, 1)
+        return panel
+
+    def _clear_preview_grid(self):
+        """移除网格里所有缩略图（保留占位 label 对象，仅从布局摘离）。"""
+        while self.preview_grid.count():
+            item = self.preview_grid.takeAt(0)
+            w = item.widget()
+            if w is not None and w is not self.preview_placeholder:
+                w.setParent(None)
+                w.deleteLater()
+
+    def _set_preview_placeholder(self, text: str):
+        self.preview_placeholder.setText(text)
+        if self.preview_grid.indexOf(self.preview_placeholder) == -1:
+            self.preview_grid.addWidget(self.preview_placeholder, 0, 0)
+
+    def _load_preview(self, path: Path):
+        """拖入压缩包后，在后台解压并加载右侧预览。"""
+        # 取消上一个仍在跑的预览线程（不强制强杀，靠 gen 令牌忽略旧结果）
+        if self._preview_thread is not None and self._preview_thread.isRunning():
+            self._preview_thread.quit()
+        self._preview_gen += 1
+        self._clear_preview_grid()
+        self._set_preview_placeholder('正在解压预览…')
+        self.preview_count_lbl.setText('')
+        thread = _PreviewWorker(self._preview_gen, path, self.config)
+        thread.finished.connect(self._on_preview_loaded)
+        thread.error.connect(self._on_preview_error)
+        thread.finished.connect(thread.deleteLater)
+        thread.error.connect(thread.deleteLater)
+        self._preview_thread = thread
+        thread.start()
+
+    def _on_preview_loaded(self, gen: int, image_paths: list, video_count: int, total: int, extract_dir):
+        if gen != self._preview_gen:
+            return
+        # 记住本次预览解压出来的目录，发布时直接复用，避免重复解压
+        self._preview_extract_dir = extract_dir
+        self._clear_preview_grid()
+        if not image_paths:
+            self._set_preview_placeholder('（压缩包内无图片）')
+            self.preview_count_lbl.setText(f'{total} 文件 / {video_count} 视频')
+            return
+        cols = 2
+        thumb_w, thumb_h = 200, 266  # 3:4 缩略图
+        for i, p in enumerate(image_paths):
+            thumb = _PreviewThumb(p)
+            thumb.setObjectName('previewThumbCover' if i == 0 else 'previewThumb')
+            thumb.setFixedSize(thumb_w, thumb_h)
+            img = QImage(str(p))
+            if img.isNull():
+                thumb.setText(p.name)
+            else:
+                pix = QPixmap.fromImage(
+                    img.scaled(thumb_w, thumb_h, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                )
+                thumb.setPixmap(pix)
+            thumb.setToolTip(f'{i + 1}. {p.name}' + ('  (封面)' if i == 0 else ''))
+            thumb.clicked.connect(lambda _p=p: QDesktop.openUrl(QUrl.fromLocalFile(str(_p))))
+            self.preview_grid.addWidget(thumb, i // cols, i % cols)
+        self.preview_count_lbl.setText(f'{len(image_paths)} 张图片 / {video_count} 视频')
+
+    def _on_preview_error(self, gen: int, msg: str):
+        if gen != self._preview_gen:
+            return
+        self._clear_preview_grid()
+        self._set_preview_placeholder(f'预览失败: {msg}')
+        self.preview_count_lbl.setText('')
+
     def _tb_btn(self, text: str, primary: bool = False) -> QPushButton:
         btn = QPushButton(text)
         btn.setObjectName('primaryTbBtn' if primary else 'tbBtn')
@@ -734,9 +908,11 @@ class MainWindow(QMainWindow):
     def _on_archive_dropped(self, path: Path):
         self._auto_gen += 1  # 新包：作废之前可能还在跑的翻译 worker 回调
         self.archive_path = path
+        self._preview_archive_path = path
+        self._preview_extract_dir = None  # 旧预览目录作废，等本次预览完成后再更新
 
-        # 自动解析 coser / 角色名
-        parsed = parse_archive_title(path.stem)
+        # 自动解析 coser / 系列 / 角色名
+        parsed = parse_archive_title(path.stem, known_series=self._series_names)
 
         # 自动填字段（仅在为空时填，避免覆盖用户已输入的内容）
         if not self.title_zh_edit.text().strip():
@@ -745,9 +921,13 @@ class MainWindow(QMainWindow):
         if not self.cosplayer_edit.text().strip() and parsed.cosplayer:
             matched = self._match_coser(parsed.cosplayer)
             self.cosplayer_edit.setText(matched or parsed.cosplayer)
+        # 系列：优先用文件名里直接解析出的 series（如 "无职转生"/"RE0"）
+        if not self.series_edit.text().strip() and parsed.series:
+            self.series_edit.setText(parsed.series)
+            self._refresh_character_completer()
         if not self.character_edit.text().strip() and parsed.character:
             self.character_edit.setText(parsed.character)
-            # 角色与系列绑定：若解析出的角色命中某系列，自动预填系列
+            # 仍未填系列则尝试由角色反查（兜底）
             if not self.series_edit.text().strip():
                 s = self._series_of_character(parsed.character)
                 if s:
@@ -758,6 +938,9 @@ class MainWindow(QMainWindow):
             self._request_auto_slug()
         # 异步：中文/英文标题 → 翻译成日文，自动填充日文标题
         self._request_auto_ja()
+
+        # 右侧图片预览（后台解压当前压缩包）
+        self._load_preview(path)
 
         self._refresh_status()
 
@@ -863,6 +1046,10 @@ class MainWindow(QMainWindow):
             self.worker = None
         self.progress_bar.setValue(0)
         self.progress_label.setText('就绪')
+        # 清空右侧图片预览
+        self._clear_preview_grid()
+        self._set_preview_placeholder('拖入压缩包后在此预览图片')
+        self.preview_count_lbl.setText('')
         self.step_label.setText('待开始')
         self.status_lbl.setText('就绪')
         self._refresh_status()

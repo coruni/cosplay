@@ -167,12 +167,14 @@ class BotHandler:
         title_zh = parsed.clean_title or archive_path.stem
         cosplayer = parsed.cosplayer or ''
         character = parsed.character or ''
+        series = parsed.series or ''
 
         await self._send(
             chat_id,
             f'📋 解析:\n'
             f'  标题: <b>{_escape(title_zh)}</b>\n'
             f'  Coser: {_escape(cosplayer or "(空)")}\n'
+            f'  系列: {_escape(series or "(空)")}\n'
             f'  Character: {_escape(character or "(空)")}\n'
             f'  生成 Slug 中 ...'
         )
@@ -189,6 +191,7 @@ class BotHandler:
             titleEn=en_title,
             cosplayer=cosplayer,
             character=character,
+            series=series,
             rating=self.config.tg_default_rating,
             price=self.config.tg_default_price,
             isPremium=self.config.tg_default_premium,

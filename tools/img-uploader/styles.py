@@ -369,4 +369,37 @@ QMessageBox QPushButton {
 QMessageBox QPushButton:hover {
     background-color: rgba(255, 255, 255, 0.1);
 }
+
+/* Preview panel (right column) */
+#mainHSplitter::handle {
+    background-color: rgba(255, 255, 255, 0.04);
+}
+
+#previewPanel {
+    background-color: #1c1c28;
+}
+
+#previewHeader {
+    background-color: #262633;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+#previewScroll, #previewViewport {
+    background-color: #1c1c28;
+}
+
+#previewThumb {
+    background-color: #14141c;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 6px;
+    padding: 2px;
+}
+
+#previewThumb:hover {
+    border-color: rgba(255, 45, 120, 0.5);
+}
+
+#previewThumbCover {
+    border: 2px solid #ff2d78;
+}
 """
