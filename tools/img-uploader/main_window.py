@@ -1039,6 +1039,8 @@ class MainWindow(QMainWindow):
         self.rating_combo.setCurrentIndex(0)
         self.premium_cb.setChecked(False)
         self.archive_path = None
+        self._preview_archive_path = None
+        self._preview_extract_dir = None  # 预览解压目录随表单重置而作废
         # 注意：不在此清除 _batch_mode，批量开关由发布流程显式管理
         self._batch_publish_when_slug_ready = False
         self._batch_publish_when_ja_ready = False
@@ -1196,7 +1198,17 @@ class MainWindow(QMainWindow):
         self._log('info', '=' * 50)
         self._log('info', f'开始发布：{payload.slug} - {payload.titleZh}')
 
-        self.worker = PublishWorker(self.archive_path, payload, self.config)
+        # 复用预览已解压目录：必须属于当前压缩包且仍有效
+        reuse_dir = None
+        if (
+            self._preview_archive_path == self.archive_path
+            and self._preview_extract_dir is not None
+            and self._preview_extract_dir.exists()
+            and any(self._preview_extract_dir.iterdir())
+        ):
+            reuse_dir = self._preview_extract_dir
+
+        self.worker = PublishWorker(self.archive_path, payload, self.config, extracted_dir=reuse_dir)
         self.worker.log.connect(self._on_log)
         self.worker.step.connect(self._on_step)
         self.worker.progress.connect(self._on_progress)

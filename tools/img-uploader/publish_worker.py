@@ -34,11 +34,13 @@ class PublishWorker(QThread):
         payload: GalleryPayload,
         config: AppConfig,
         parent=None,
+        extracted_dir: Path | None = None,
     ):
         super().__init__(parent)
         self.archive_path = archive_path
         self.payload = payload
         self.config = config
+        self.extracted_dir = extracted_dir  # 预览已解压目录（复用则跳过解压）
         self._stop = False
 
     def stop(self):
@@ -59,14 +61,25 @@ class PublishWorker(QThread):
 
         # ───────── ① 解压 ─────────
         self.step.emit('extract')
-        self.log.emit('info', f'解压 {self.archive_path.name} ...')
         cfg.temp_path.mkdir(parents=True, exist_ok=True)
-        extract_root = cfg.temp_path / slug
-        if extract_root.exists():
-            import shutil
-            shutil.rmtree(extract_root)
 
-        extract_dir = archive_utils.extract_archive(self.archive_path, cfg.temp_path, cfg.archive_passwords)
+        # 复用预览已解压目录（避免拖入时解压过一次又解压第二次）
+        if (
+            self.extracted_dir is not None
+            and self.extracted_dir.exists()
+            and any(self.extracted_dir.iterdir())
+        ):
+            extract_dir = self.extracted_dir
+            self.log.emit('info', f'复用预览已解压目录，跳过解压: {extract_dir}')
+        else:
+            if self.extracted_dir is not None:
+                self.log.emit('warn', '预览解压目录不可用，重新解压压缩包')
+            self.log.emit('info', f'解压 {self.archive_path.name} ...')
+            extract_root = cfg.temp_path / slug
+            if extract_root.exists():
+                import shutil
+                shutil.rmtree(extract_root)
+            extract_dir = archive_utils.extract_archive(self.archive_path, cfg.temp_path, cfg.archive_passwords)
         all_files = archive_utils.list_files(extract_dir)
         image_files = [p for p in all_files if is_image(p)]
         video_files = [p for p in all_files if is_video(p)]
