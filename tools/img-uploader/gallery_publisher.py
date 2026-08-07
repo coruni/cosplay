@@ -76,6 +76,49 @@ def fetch_cosplayers(config: AppConfig) -> list[dict]:
     return data.get('items', []) if isinstance(data, dict) else data
 
 
+def fetch_series(config: AppConfig) -> list[dict]:
+    """
+    从 cosplay 后台聚合拉取所有出现过的系列，及其绑定的角色列表。
+    返回 [{'series': str, 'galleryCount': int, 'characters': [str, ...]}, ...]，
+    characters 按在该系列中出现频次降序。
+    """
+    url = config.cosplay_base_url.rstrip('/') + '/admin/api/series'
+    cookies = {'admin_token': config.cosplay_admin_token}
+    resp = requests.get(url, cookies=cookies, timeout=15)
+    if resp.status_code == 401:
+        raise RuntimeError('admin token 无效')
+    resp.raise_for_status()
+    data = resp.json()
+    items = data.get('items', []) if isinstance(data, dict) else []
+    return [
+        {
+            'series': it.get('series', ''),
+            'galleryCount': it.get('galleryCount', 0),
+            'characters': it.get('characters', []) or [],
+        }
+        for it in items
+    ]
+
+
+def fetch_characters(config: AppConfig) -> list[dict]:
+    """
+    从 cosplay 后台聚合拉取所有出现过的角色（带图包数），用于「未选系列」时的兜底候选。
+    返回 [{'name': str, 'galleryCount': int}, ...]。
+    """
+    url = config.cosplay_base_url.rstrip('/') + '/admin/api/series'
+    cookies = {'admin_token': config.cosplay_admin_token}
+    resp = requests.get(url, cookies=cookies, timeout=15)
+    if resp.status_code == 401:
+        raise RuntimeError('admin token 无效')
+    resp.raise_for_status()
+    data = resp.json()
+    chars = data.get('allCharacters', []) if isinstance(data, dict) else []
+    return [
+        {'name': c.get('name', ''), 'galleryCount': c.get('galleryCount', 0)}
+        for c in chars
+    ]
+
+
 def publish_gallery(payload: GalleryPayload, config: AppConfig) -> dict:
     """POST /admin/api/galleries 创建图包，返回后端响应。"""
     if not config.cosplay_base_url or not config.cosplay_admin_token:

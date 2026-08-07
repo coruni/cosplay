@@ -16,11 +16,12 @@ from PyQt5.QtGui import QFont, QColor, QTextCursor, QDragEnterEvent, QDropEvent
 from config import AppConfig
 from gallery_publisher import (
     GalleryPayload, generate_slug, auto_slug, translate_text,
-    fetch_categories, fetch_cosplayers,
+    fetch_categories, fetch_cosplayers, fetch_series, fetch_characters,
 )
 from publish_worker import PublishWorker
 from settings_dialog import SettingsDialog
 from coser_list_dialog import CoserListDialog
+from series_dialog import SeriesListDialog, CharacterListDialog
 from archive_utils import is_archive
 from title_parser import parse_archive_title
 import styles
@@ -125,6 +126,11 @@ class MainWindow(QMainWindow):
         self.categories: list[dict] = []
         self.cosplayers: list[dict] = []
         self._coser_names: list[str] = []
+        self.series: list[dict] = []            # [{series, galleryCount, characters}]
+        self.characters: list[dict] = []         # [{name, galleryCount}]
+        self._series_names: list[str] = []
+        self._char_names: list[str] = []
+        self._series_char_map: dict[str, list[str]] = {}  # series -> [character]
         self._slug_worker: _SlugWorker | None = None
         self._ja_worker: _JaWorker | None = None
         self._bot = None  # TgBot
@@ -145,6 +151,7 @@ class MainWindow(QMainWindow):
         self._refresh_status()
         self._load_categories()
         self._load_cosplayers()
+        self._load_series_characters()
 
         # 根据配置自动启动 bot
         if self.config.tg_enabled and self.config.tg_bot_token:
@@ -377,10 +384,40 @@ class MainWindow(QMainWindow):
         self.character_edit = QLineEdit()
         self.character_edit.setMinimumHeight(32)
         meta_row1.addWidget(self.character_edit)
+
+        self._char_completer = QCompleter()
+        self._char_completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self._char_completer.setFilterMode(Qt.MatchContains)
+        self._char_completer.setModel(QStringListModel([], self))
+        self.character_edit.setCompleter(self._char_completer)
+
+        self.char_list_btn = QPushButton('列表')
+        self.char_list_btn.setObjectName('ghostBtn')
+        self.char_list_btn.setMinimumHeight(32)
+        self.char_list_btn.setCursor(Qt.PointingHandCursor)
+        self.char_list_btn.clicked.connect(self._on_open_char_list)
+        meta_row1.addWidget(self.char_list_btn)
+
         meta_row1.addWidget(self._mini_label('Series'))
         self.series_edit = QLineEdit()
         self.series_edit.setMinimumHeight(32)
         meta_row1.addWidget(self.series_edit)
+
+        self._series_completer = QCompleter()
+        self._series_completer.setCaseSensitivity(Qt.CaseInsensitive)
+        self._series_completer.setFilterMode(Qt.MatchContains)
+        self._series_completer.setModel(QStringListModel([], self))
+        self.series_edit.setCompleter(self._series_completer)
+        # 系列变化后，按绑定关系过滤角色候选
+        self.series_edit.editingFinished.connect(self._refresh_character_completer)
+
+        self.series_list_btn = QPushButton('列表')
+        self.series_list_btn.setObjectName('ghostBtn')
+        self.series_list_btn.setMinimumHeight(32)
+        self.series_list_btn.setCursor(Qt.PointingHandCursor)
+        self.series_list_btn.clicked.connect(self._on_open_series_list)
+        meta_row1.addWidget(self.series_list_btn)
+
         lay.addLayout(meta_row1)
 
         # 分类（多选 + 标签）
@@ -617,6 +654,83 @@ class MainWindow(QMainWindow):
                 self.cosplayer_edit.setText(name)
                 self.cosplayer_edit.setFocus()
 
+    def _load_series_characters(self):
+        """从后台聚合拉取系列与角色（含绑定关系），填充自动补全模型。"""
+        if not self.config.cosplay_base_url or not self.config.cosplay_admin_token:
+            return
+        if not hasattr(self, '_series_completer'):
+            return
+        try:
+            series = fetch_series(self.config)
+            characters = fetch_characters(self.config)
+            self.series = series
+            self.characters = characters
+            self._series_names = [s.get('series', '') for s in series if s.get('series')]
+            self._char_names = [c.get('name', '') for c in characters if c.get('name')]
+            self._series_char_map = {
+                s.get('series', ''): list(s.get('characters', []) or [])
+                for s in series
+                if s.get('series')
+            }
+            self._series_completer.setModel(QStringListModel(self._series_names, self))
+            self._refresh_character_completer()
+        except Exception as e:
+            self._log('warn', f'加载系列/角色失败: {e}')
+
+    def _refresh_character_completer(self):
+        """按当前所选系列过滤角色候选（角色与系列绑定）。"""
+        if not hasattr(self, '_char_completer'):
+            return
+        series = (self.series_edit.text() or '').strip()
+        if series and series in self._series_char_map:
+            names = list(self._series_char_map[series])
+        else:
+            names = list(self._char_names)
+        self._char_completer.setModel(QStringListModel(names, self))
+
+    def _series_of_character(self, character: str) -> str | None:
+        """查找包含该角色最多的系列（用于拖包自动预填系列）。"""
+        character = (character or '').strip()
+        if not character or not self._series_char_map:
+            return None
+        best: str | None = None
+        best_count = 0
+        for s, chars in self._series_char_map.items():
+            if character in chars:
+                cnt = chars.count(character)
+                if cnt > best_count:
+                    best_count = cnt
+                    best = s
+        return best
+
+    def _on_open_series_list(self):
+        if not self.series:
+            QMessageBox.information(self, '提示', '暂无系列数据，请检查后台地址 / Admin Token 是否已配置')
+            return
+        dlg = SeriesListDialog(self.series, self)
+        if dlg.exec_() == QDialog.Accepted:
+            name = dlg.selected_name()
+            if name:
+                self.series_edit.setText(name)
+                self.series_edit.setFocus()
+                self._refresh_character_completer()
+
+    def _on_open_char_list(self):
+        series = (self.series_edit.text() or '').strip()
+        if series and series in self._series_char_map:
+            char_items = [{'name': c, 'galleryCount': 0} for c in self._series_char_map[series]]
+        else:
+            char_items = self.characters
+        if not char_items:
+            QMessageBox.information(self, '提示', '暂无角色数据，请检查后台地址 / Admin Token 是否已配置')
+            return
+        dlg = CharacterListDialog(char_items, self)
+        if dlg.exec_() == QDialog.Accepted:
+            name = dlg.selected_name()
+            if name:
+                self.character_edit.setText(name)
+                self.character_edit.setFocus()
+
     def _on_archive_dropped(self, path: Path):
         self._auto_gen += 1  # 新包：作废之前可能还在跑的翻译 worker 回调
         self.archive_path = path
@@ -633,6 +747,12 @@ class MainWindow(QMainWindow):
             self.cosplayer_edit.setText(matched or parsed.cosplayer)
         if not self.character_edit.text().strip() and parsed.character:
             self.character_edit.setText(parsed.character)
+            # 角色与系列绑定：若解析出的角色命中某系列，自动预填系列
+            if not self.series_edit.text().strip():
+                s = self._series_of_character(parsed.character)
+                if s:
+                    self.series_edit.setText(s)
+                    self._refresh_character_completer()
         if not self.slug_edit.text().strip():
             # 异步：中文标题 → 翻译成英文 → slugify（与后台 autoSlug 一致）
             self._request_auto_slug()
@@ -919,6 +1039,7 @@ class MainWindow(QMainWindow):
             self.host_lbl.setText(self.config.host_name or 'Chevereto')
             self._load_categories()
             self._load_cosplayers()
+            self._load_series_characters()
             # bot 配置变更后同步状态
             self._sync_bot_state_after_settings()
 
