@@ -32,11 +32,13 @@ class _PreviewWorker(QThread):
     finished = pyqtSignal(int, list, int, int, object)  # gen, image_paths, video_count, total, extract_dir
     error = pyqtSignal(int, str)
 
-    def __init__(self, gen: int, archive_path: Path, config):
+    def __init__(self, gen: int, archive_path: Path, config, gen_getter=None):
         super().__init__()
         self.gen = gen
         self.archive_path = archive_path
         self.config = config
+        # 主窗口代次 getter：用于判断自己是否已被新拖包取代（lambda 持有主窗口引用）
+        self._gen_getter = gen_getter or (lambda: gen)
 
     def run(self):
         try:
@@ -46,7 +48,7 @@ class _PreviewWorker(QThread):
             preview_root = cfg.temp_path / '_preview'
             preview_root.mkdir(parents=True, exist_ok=True)
             # 若已有更新的拖包请求进入，则中止本次解压（不回传结果）
-            stop_cb = lambda: self.gen != self._preview_gen
+            stop_cb = lambda: self.gen != self._gen_getter()
             extract_dir = archive_utils.extract_archive(
                 self.archive_path, preview_root, cfg.archive_passwords,
                 stop_cb=stop_cb,
@@ -691,7 +693,7 @@ class MainWindow(QMainWindow):
         self._clear_preview_grid()
         self._set_preview_placeholder('正在解压预览…')
         self.preview_count_lbl.setText('')
-        thread = _PreviewWorker(self._preview_gen, path, self.config)
+        thread = _PreviewWorker(self._preview_gen, path, self.config, gen_getter=lambda: self._preview_gen)
         thread.finished.connect(self._on_preview_loaded)
         thread.error.connect(self._on_preview_error)
         thread.finished.connect(thread.deleteLater)
