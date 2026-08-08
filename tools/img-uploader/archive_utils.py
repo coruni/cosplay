@@ -17,6 +17,10 @@ from config import AppConfig
 from image_utils import is_image, is_video, is_media
 
 
+class ExtractCancelled(Exception):
+    """解压被 stop_cb 请求取消。"""
+
+
 def natural_sort_key(path: Path) -> list:
     """自然排序 key：把路径中的数字段按数值比较，使 1,2,10,11 而非 1,10,11,2。
 
@@ -253,19 +257,28 @@ def _is_zip_encrypted(zip_path: Path) -> bool:
     return False
 
 
-def _try_extract_zip(zip_path: Path, extract_root: Path, passwords: list[str]) -> None:
-    """尝试用密码列表解压 zip。"""
+def _try_extract_zip(zip_path: Path, extract_root: Path, passwords: list[str],
+                     stop_cb=None, progress_cb=None) -> None:
+    """尝试用密码列表解压 zip（逐文件，支持中途取消与进度）。"""
+    def _do(zf, pwd=None):
+        members = [i for i in zf.infolist() if not i.is_dir()]
+        total = len(members)
+        for idx, info in enumerate(members):
+            if stop_cb and stop_cb():
+                raise ExtractCancelled()
+            zf.extract(info, extract_root, pwd=pwd)
+            if progress_cb:
+                progress_cb(idx + 1, total)
+
     # 先试无密码
     try:
         with zipfile.ZipFile(zip_path, 'r') as zf:
-            zf.extractall(extract_root)
+            _do(zf)
         return
     except RuntimeError as e:
         if 'encrypted' not in str(e).lower() and 'password' not in str(e).lower():
             raise
     except Exception as e:
-        # zipfile 遇到加密文件也可能抛 BadZipFile 等其他错误
-        # 只有明确是加密相关的才继续尝试密码
         if 'encrypted' not in str(e).lower() and 'password' not in str(e).lower():
             raise
 
@@ -280,21 +293,37 @@ def _try_extract_zip(zip_path: Path, extract_root: Path, passwords: list[str]) -
                 p.unlink()
         try:
             with zipfile.ZipFile(zip_path, 'r') as zf:
-                zf.extractall(extract_root, pwd=pwd.encode('utf-8'))
+                _do(zf, pwd.encode('utf-8'))
             return
+        except ExtractCancelled:
+            raise
         except Exception as e:
             last_err = e
             continue
     raise RuntimeError(f'zip 解压失败（可能密码错误）: {last_err}')
 
 
-def _try_extract_rar(rar_path: Path, extract_root: Path, passwords: list[str]) -> None:
-    """尝试用密码列表解压 rar。"""
+def _try_extract_rar(rar_path: Path, extract_root: Path, passwords: list[str],
+                     stop_cb=None, progress_cb=None) -> None:
+    """尝试用密码列表解压 rar（逐文件，支持中途取消与进度）。"""
     import rarfile
+
+    def _do(rf, pwd=None):
+        if pwd:
+            rf.setpassword(pwd)
+        names = [n for n in rf.namelist() if not n.endswith('/')]
+        total = len(names)
+        for idx, name in enumerate(names):
+            if stop_cb and stop_cb():
+                raise ExtractCancelled()
+            rf.extract(name, extract_root)
+            if progress_cb:
+                progress_cb(idx + 1, total)
+
     # 先试无密码
     try:
         with rarfile.RarFile(rar_path, 'r') as rf:
-            rf.extractall(extract_root)
+            _do(rf)
         return
     except rarfile.RarWrongPassword:
         pass
@@ -310,21 +339,34 @@ def _try_extract_rar(rar_path: Path, extract_root: Path, passwords: list[str]) -
                 p.unlink()
         try:
             with rarfile.RarFile(rar_path, 'r') as rf:
-                rf.setpassword(pwd)
-                rf.extractall(extract_root)
+                _do(rf, pwd)
             return
+        except ExtractCancelled:
+            raise
         except Exception:
             continue
     raise RuntimeError('rar 解压失败（可能密码错误）')
 
 
-def _try_extract_7z(sevenz_path: Path, extract_root: Path, passwords: list[str]) -> None:
-    """尝试用密码列表解压 7z。"""
+def _try_extract_7z(sevenz_path: Path, extract_root: Path, passwords: list[str],
+                    stop_cb=None, progress_cb=None) -> None:
+    """尝试用密码列表解压 7z（逐文件，支持中途取消与进度）。"""
     import py7zr
+
+    def _do(sz):
+        names = sz.getnames()
+        total = len(names)
+        for idx, name in enumerate(names):
+            if stop_cb and stop_cb():
+                raise ExtractCancelled()
+            sz.extract(extract_root, targets=[name])
+            if progress_cb:
+                progress_cb(idx + 1, total)
+
     # 先试无密码
     try:
         with py7zr.SevenZipFile(sevenz_path, 'r') as sz:
-            sz.extractall(extract_root)
+            _do(sz)
         return
     except py7zr.PasswordRequired:
         pass
@@ -340,23 +382,32 @@ def _try_extract_7z(sevenz_path: Path, extract_root: Path, passwords: list[str])
                 p.unlink()
         try:
             with py7zr.SevenZipFile(sevenz_path, 'r', password=pwd) as sz:
-                sz.extractall(extract_root)
+                _do(sz)
             return
+        except ExtractCancelled:
+            raise
         except Exception:
             continue
     raise RuntimeError('7z 解压失败（可能密码错误）')
 
 
-def extract_archive(archive_path: Path, dest_dir: Path, passwords: list[str] | None = None) -> Path:
+def extract_archive(archive_path: Path, dest_dir: Path, passwords: list[str] | None = None,
+                    stop_cb=None, progress_cb=None) -> Path:
     """
     解压到 dest_dir 下的一个子目录（用压缩包名命名），返回该子目录。
     会自动剥离压缩包内顶层的单一根目录（让内部文件直接位于子目录下）。
     支持单卷和分卷格式。
     passwords: 解压密码列表，遇到加密压缩包时按顺序尝试。
+    stop_cb: 可调用对象，返回 True 时中止解压（抛 ExtractCancelled）。
+    progress_cb: 可调用对象 (current, total)，每解压一个文件回调一次。
     """
     passwords = passwords or []
     main_volume = _resolve_main_volume(archive_path)
     stem = _archive_stem_for_extract(archive_path)
+
+    # 开始解压前先检查一次取消，避免无谓地建目录
+    if stop_cb and stop_cb():
+        raise ExtractCancelled()
 
     dest_dir.mkdir(parents=True, exist_ok=True)
     extract_root = dest_dir / stem
@@ -379,26 +430,26 @@ def extract_archive(archive_path: Path, dest_dir: Path, passwords: list[str] | N
             combined = dest_dir / f'_combined_{stem}.zip'
             try:
                 combined = _combine_zip_split(main_volume, combined)
-                _try_extract_zip(combined, extract_root, passwords)
+                _try_extract_zip(combined, extract_root, passwords, stop_cb, progress_cb)
             finally:
                 if combined.exists():
                     combined.unlink()
         else:
-            _try_extract_zip(main_volume, extract_root, passwords)
+            _try_extract_zip(main_volume, extract_root, passwords, stop_cb, progress_cb)
     elif _RAR_PART_RE.match(name) or main_volume.suffix.lower() == '.rar':
-        _try_extract_rar(main_volume, extract_root, passwords)
+        _try_extract_rar(main_volume, extract_root, passwords, stop_cb, progress_cb)
     elif _7Z_PART_RE.match(name) or main_volume.suffix.lower() == '.7z':
         if _7Z_PART_RE.match(name):
             # 分卷 7z：合并所有分卷到一个临时文件再解压
             combined = dest_dir / f'_combined_{stem}.7z'
             try:
                 _merge_numbered_parts(main_volume, combined, _7Z_PART_RE)
-                _try_extract_7z(combined, extract_root, passwords)
+                _try_extract_7z(combined, extract_root, passwords, stop_cb, progress_cb)
             finally:
                 if combined.exists():
                     combined.unlink()
         else:
-            _try_extract_7z(main_volume, extract_root, passwords)
+            _try_extract_7z(main_volume, extract_root, passwords, stop_cb, progress_cb)
     elif _GENERIC_PART_RE.match(name):
         # 通用分卷：合并后尝试 7z / zip 解压
         combined = dest_dir / f'_combined_{stem}.bin'
@@ -406,10 +457,10 @@ def extract_archive(archive_path: Path, dest_dir: Path, passwords: list[str] | N
             _merge_numbered_parts(main_volume, combined, _GENERIC_PART_RE)
             # 先试 7z
             try:
-                _try_extract_7z(combined, extract_root, passwords)
+                _try_extract_7z(combined, extract_root, passwords, stop_cb, progress_cb)
             except Exception:
                 # 再试 zip
-                _try_extract_zip(combined, extract_root, passwords)
+                _try_extract_zip(combined, extract_root, passwords, stop_cb, progress_cb)
         finally:
             if combined.exists():
                 combined.unlink()

@@ -207,13 +207,14 @@ def translate_text(text: str, from_lang: str, to_lang: str, timeout: int = 8) ->
     return None
 
 
-def auto_slug(title_zh: str, title_en: str, title_ja: str = '') -> tuple[str, str]:
+def auto_slug(title_zh: str, title_en: str, title_ja: str = '', fallback_base: str = '') -> tuple[str, str]:
     """
     返回 (slug, en_title)。
     1. 英文标题是拉丁文 → 直接 slugify
     2. 日文标题是拉丁文（romaji）→ 直接 slugify
     3. 有中文 → 翻译成英文再 slugify
     4. 有日文 → 翻译成英文再 slugify
+    5. 翻译全失败 → 退回用原始文件名（通常含罗马音/英文）生成 slug
     全失败时返回 ('', '')。
     """
     en = (title_en or '').strip()
@@ -237,4 +238,9 @@ def auto_slug(title_zh: str, title_en: str, title_ja: str = '') -> tuple[str, st
             slug = generate_slug(en_title)
             if slug and slug != 'gallery':
                 return slug, en_title
+    # 兜底：翻译配额耗尽 / 网络失败时，用原始文件名生成 slug，避免发布被卡死
+    if fallback_base:
+        slug = generate_slug(fallback_base)
+        if slug and slug != 'gallery':
+            return slug, ''
     return '', ''

@@ -49,6 +49,9 @@ class PublishWorker(QThread):
     def run(self):
         try:
             self._run_flow()
+        except archive_utils.ExtractCancelled:
+            self.log.emit('warn', '解压已取消')
+            self.done.emit(False, '', '已取消')
         except Exception as e:
             tb = traceback.format_exc()
             self.log.emit('error', f'流程异常: {e}')
@@ -79,7 +82,11 @@ class PublishWorker(QThread):
             if extract_root.exists():
                 import shutil
                 shutil.rmtree(extract_root)
-            extract_dir = archive_utils.extract_archive(self.archive_path, cfg.temp_path, cfg.archive_passwords)
+            extract_dir = archive_utils.extract_archive(
+                self.archive_path, cfg.temp_path, cfg.archive_passwords,
+                stop_cb=lambda: self._stop,
+                progress_cb=lambda c, t: self.progress.emit(c, t, '解压中…'),
+            )
         all_files = archive_utils.list_files(extract_dir)
         image_files = [p for p in all_files if is_image(p)]
         video_files = [p for p in all_files if is_video(p)]

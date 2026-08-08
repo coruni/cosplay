@@ -8,10 +8,10 @@ from PyQt5.QtWidgets import (
     QFileDialog, QLabel, QFrame, QProgressBar, QMessageBox,
     QLineEdit, QCheckBox, QPlainTextEdit, QSplitter, QComboBox,
     QSizePolicy, QScrollArea, QDialog, QCompleter,
-    QListWidget, QListWidgetItem, QGridLayout, QDesktop,
+    QListWidget, QListWidgetItem, QGridLayout,
 )
 from PyQt5.QtCore import Qt, QSize, QStringListModel, QThread, pyqtSignal, QUrl
-from PyQt5.QtGui import QFont, QColor, QTextCursor, QDragEnterEvent, QDropEvent, QImage, QPixmap
+from PyQt5.QtGui import QFont, QColor, QTextCursor, QDragEnterEvent, QDropEvent, QImage, QPixmap, QDesktopServices
 
 from config import AppConfig
 from gallery_publisher import (
@@ -45,8 +45,11 @@ class _PreviewWorker(QThread):
             cfg = self.config
             preview_root = cfg.temp_path / '_preview'
             preview_root.mkdir(parents=True, exist_ok=True)
+            # 若已有更新的拖包请求进入，则中止本次解压（不回传结果）
+            stop_cb = lambda: self.gen != self._preview_gen
             extract_dir = archive_utils.extract_archive(
-                self.archive_path, preview_root, cfg.archive_passwords
+                self.archive_path, preview_root, cfg.archive_passwords,
+                stop_cb=stop_cb,
             )
             all_files = archive_utils.list_files(extract_dir)
             image_files = sorted(
@@ -57,6 +60,8 @@ class _PreviewWorker(QThread):
             self.finished.emit(
                 self.gen, image_files, len(video_files), len(all_files), extract_dir
             )
+        except archive_utils.ExtractCancelled:
+            return  # 已被新的拖包请求取代，静默放弃
         except Exception as e:
             self.error.emit(self.gen, str(e))
 
@@ -100,16 +105,17 @@ class _SlugWorker(QThread):
     """后台调用 auto_slug（含网络翻译），完成后发信号回主线程。"""
     slug_ready = pyqtSignal(str, str, int)  # slug, en_title, gen
 
-    def __init__(self, title_zh: str, title_en: str, title_ja: str = '', parent=None, gen: int = 0):
+    def __init__(self, title_zh: str, title_en: str, title_ja: str = '', fallback_base: str = '', parent=None, gen: int = 0):
         super().__init__(parent)
         self._zh = title_zh
         self._en = title_en
         self._ja = title_ja
+        self._fallback = fallback_base
         self.gen = gen
 
     def run(self):
         try:
-            slug, en_title = auto_slug(self._zh, self._en, self._ja)
+            slug, en_title = auto_slug(self._zh, self._en, self._ja, fallback_base=self._fallback)
             self.slug_ready.emit(slug, en_title, self.gen)
         except Exception:
             self.slug_ready.emit('', '', self.gen)
@@ -718,7 +724,7 @@ class MainWindow(QMainWindow):
                 )
                 thumb.setPixmap(pix)
             thumb.setToolTip(f'{i + 1}. {p.name}' + ('  (封面)' if i == 0 else ''))
-            thumb.clicked.connect(lambda _p=p: QDesktop.openUrl(QUrl.fromLocalFile(str(_p))))
+            thumb.clicked.connect(lambda _p=p: QDesktopServices.openUrl(QUrl.fromLocalFile(str(_p))))
             self.preview_grid.addWidget(thumb, i // cols, i % cols)
         self.preview_count_lbl.setText(f'{len(image_paths)} 张图片 / {video_count} 视频')
 
@@ -1067,8 +1073,10 @@ class MainWindow(QMainWindow):
         ja = self.title_ja_edit.text().strip()
         if not zh and not en and not ja:
             return
+        # 翻译失败时的兜底 slug 来源：原始压缩包文件名（通常含罗马音/英文）
+        fallback_base = self.archive_path.stem if self.archive_path else ''
         self._log('info', '正在生成 Slug（必要时调用翻译）...')
-        self._slug_worker = _SlugWorker(zh, en, ja, self, gen)
+        self._slug_worker = _SlugWorker(zh, en, ja, fallback_base, self, gen)
         self._slug_worker.slug_ready.connect(self._on_slug_ready)
         self._slug_worker.start()
 
