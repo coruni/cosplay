@@ -1,6 +1,7 @@
 """端到端发布流程：解压 → 清理 → 规范化 → 重打包 → 压缩上传 → 发布。"""
 from __future__ import annotations
 from pathlib import Path
+import traceback
 
 from PyQt5.QtCore import QThread, pyqtSignal
 
@@ -214,14 +215,37 @@ class PublishWorker(QThread):
         if self._stop: return
 
         ok_urls = [u for u in urls if u]
+
+        # 失败重试：仅重传失败项，不重复处理已成功的图（防止多次处理）
+        if failures and not self._stop:
+            failed_idx = sorted({i for i, _ in failures})
+            self.log.emit('warn', f'{len(failed_idx)} 张上传失败，仅重试失败项（不重复处理成功项）...')
+            for idx in failed_idx:
+                if self._stop:
+                    break
+                i2, url2, err2 = upload_one(idx, images_after[idx])
+                if url2:
+                    urls[idx] = url2
+                    self.image_uploaded.emit(idx, url2)
+                    self.log.emit('success', f'  [{idx + 1}] OK（重试）: {url2}')
+                else:
+                    self.log.emit('error', f'  [{idx + 1}] 仍失败: {err2}')
+            # 重新统计仍失败的图（按 idx 去重）
+            still: dict[int, str] = {}
+            for i, e in failures:
+                if not urls[i]:
+                    still[i] = e
+            failures = [(i, e) for i, e in still.items()]
+            ok_urls = [u for u in urls if u]
+
         if not ok_urls:
             raise RuntimeError('没有图片上传成功')
 
-        # 任何一张失败都终止发布（已重试过 MAX_RETRIES 次）
+        # 仍有失败才终止发布
         if failures:
             err_lines = '\n'.join(f'  [{i + 1}] {err}' for i, err in failures[:20])
             raise RuntimeError(
-                f'{len(failures)} 张图片上传失败（每张已重试 {MAX_RETRIES} 次），终止发布：\n{err_lines}'
+                f'{len(failures)} 张图片上传失败（已多次重试），终止发布：\n{err_lines}'
             )
 
         # ───────── ⑥ 填充字段并发布 ─────────

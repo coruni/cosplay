@@ -3,9 +3,36 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 import re
+import time
 import requests
 
 from config import AppConfig
+
+
+def _session() -> 'requests.Session':
+    """
+    直连会话：忽略系统代理（trust_env=False）。
+
+    桌面发布工具直接连后台 / 翻译接口。若系统残留了坏代理
+    （HTTP(S)_PROXY 指向不可达地址），requests 默认会走代理，
+    导致 ProxyError / 连接被拒。这里强制直连，避免坏代理阻断发布。
+    """
+    s = requests.Session()
+    s.trust_env = False
+    return s
+
+
+# ── 微软 Edge 内置翻译接口（edge.microsoft.com，免密钥） ──
+_EDGE_URL = 'https://edge.microsoft.com/translate/translatetext'
+_EDGE_HEADERS = {
+    'Content-Type': 'application/json',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+                  '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36 Edg/120.0.0.0',
+    'Origin': 'https://www.microsoft.com',
+    'Referer': 'https://www.microsoft.com/',
+}
+# Edge 翻译语言代码（与 Microsoft Translator 一致）
+_EDGE_LANG = {'zh': 'zh-Hans', 'en': 'en', 'ja': 'ja'}
 
 
 @dataclass
@@ -56,7 +83,8 @@ def fetch_categories(config: AppConfig) -> list[dict]:
     """从 cosplay 后台拉取分类列表。"""
     url = config.cosplay_base_url.rstrip('/') + '/admin/api/categories'
     cookies = {'admin_token': config.cosplay_admin_token}
-    resp = requests.get(url, cookies=cookies, timeout=15)
+    with _session() as s:
+        resp = s.get(url, cookies=cookies, timeout=15)
     if resp.status_code == 401:
         raise RuntimeError('admin token 无效')
     resp.raise_for_status()
@@ -68,7 +96,8 @@ def fetch_cosplayers(config: AppConfig) -> list[dict]:
     """从 cosplay 后台聚合拉取所有出现过的 coser 名单（带图包数）。"""
     url = config.cosplay_base_url.rstrip('/') + '/admin/api/cosplayers'
     cookies = {'admin_token': config.cosplay_admin_token}
-    resp = requests.get(url, cookies=cookies, timeout=15)
+    with _session() as s:
+        resp = s.get(url, cookies=cookies, timeout=15)
     if resp.status_code == 401:
         raise RuntimeError('admin token 无效')
     resp.raise_for_status()
@@ -84,7 +113,8 @@ def fetch_series(config: AppConfig) -> list[dict]:
     """
     url = config.cosplay_base_url.rstrip('/') + '/admin/api/series'
     cookies = {'admin_token': config.cosplay_admin_token}
-    resp = requests.get(url, cookies=cookies, timeout=15)
+    with _session() as s:
+        resp = s.get(url, cookies=cookies, timeout=15)
     if resp.status_code == 401:
         raise RuntimeError('admin token 无效')
     resp.raise_for_status()
@@ -107,7 +137,8 @@ def fetch_characters(config: AppConfig) -> list[dict]:
     """
     url = config.cosplay_base_url.rstrip('/') + '/admin/api/series'
     cookies = {'admin_token': config.cosplay_admin_token}
-    resp = requests.get(url, cookies=cookies, timeout=15)
+    with _session() as s:
+        resp = s.get(url, cookies=cookies, timeout=15)
     if resp.status_code == 401:
         raise RuntimeError('admin token 无效')
     resp.raise_for_status()
@@ -128,13 +159,14 @@ def publish_gallery(payload: GalleryPayload, config: AppConfig) -> dict:
     cookies = {'admin_token': config.cosplay_admin_token}
     headers = {'Content-Type': 'application/json'}
 
-    resp = requests.post(
-        url,
-        json=payload.to_dict(),
-        cookies=cookies,
-        headers=headers,
-        timeout=30,
-    )
+    with _session() as s:
+        resp = s.post(
+            url,
+            json=payload.to_dict(),
+            cookies=cookies,
+            headers=headers,
+            timeout=30,
+        )
 
     if resp.status_code == 401:
         raise RuntimeError('admin token 无效')
@@ -180,30 +212,40 @@ def has_cjk(s: str) -> bool:
 
 def translate_text(text: str, from_lang: str, to_lang: str, timeout: int = 8) -> str | None:
     """
-    调用 MyMemory 免费翻译 API（与后台保持一致）。
+    调用微软 Edge 内置翻译接口（edge.microsoft.com，免密钥）把文本翻译。
     from_lang / to_lang 取 'zh' | 'en' | 'ja'。
-    返回翻译结果；失败返回 None。
+    返回翻译结果；失败（网络/5xx/限流）返回 None，由上层走文件名兜底。
     """
     q = (text or '').strip()
     if not q or from_lang == to_lang:
         return None
-    if len(q) > 400:  # 免费 API 限制
+    if len(q) > 1000:  # 单次长度保护
         return None
-    mm_code = {'zh': 'zh-CN', 'en': 'en', 'ja': 'ja'}
-    src = mm_code.get(from_lang, from_lang)
-    dst = mm_code.get(to_lang, to_lang)
-    url = 'https://api.mymemory.translated.net/get'
-    params = {'q': q, 'langpair': f'{src}|{dst}'}
-    try:
-        resp = requests.get(url, params=params, timeout=timeout)
-        if resp.status_code != 200:
-            return None
-        data = resp.json()
-        t = data.get('responseData', {}).get('translatedText')
-        if isinstance(t, str) and not t.startswith('MYMEMORY WARNING'):
-            return t.strip()
-    except Exception:
-        pass
+    src = _EDGE_LANG.get(from_lang, from_lang)
+    dst = _EDGE_LANG.get(to_lang, to_lang)
+    params = {'from': src, 'to': dst, 'api-version': '3.0'}
+    last_err = None
+    for attempt in range(3):  # 重试应对偶发 5xx / 网络抖动（接口免费、会限流）
+        try:
+            with _session() as s:
+                resp = s.post(
+                    _EDGE_URL, params=params, json=[q],
+                    headers=_EDGE_HEADERS, timeout=timeout,
+                )
+            if resp.status_code != 200:
+                last_err = f'HTTP {resp.status_code}'
+                continue
+            data = resp.json()
+            # 响应形如 [{"translations":[{"text": "...", "to": "..."}]}]
+            if isinstance(data, list) and data:
+                trans = data[0].get('translations', [{}])[0].get('text')
+                if isinstance(trans, str) and trans.strip():
+                    return trans.strip()
+            last_err = 'empty translation'
+        except Exception as e:
+            last_err = str(e)
+        if attempt < 2:
+            time.sleep(0.4 * (attempt + 1))
     return None
 
 

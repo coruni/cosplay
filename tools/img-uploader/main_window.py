@@ -1,5 +1,6 @@
 from __future__ import annotations
 import difflib
+import os
 from pathlib import Path
 from datetime import datetime
 
@@ -726,9 +727,22 @@ class MainWindow(QMainWindow):
                 )
                 thumb.setPixmap(pix)
             thumb.setToolTip(f'{i + 1}. {p.name}' + ('  (封面)' if i == 0 else ''))
-            thumb.clicked.connect(lambda _p=p: QDesktopServices.openUrl(QUrl.fromLocalFile(str(_p))))
+            thumb.clicked.connect(lambda _p=p: self._open_original(str(_p)))
             self.preview_grid.addWidget(thumb, i // cols, i % cols)
         self.preview_count_lbl.setText(f'{len(image_paths)} 张图片 / {video_count} 视频')
+
+    def _open_original(self, path: str):
+        """用系统默认程序打开原图。
+
+        Windows 上 QDesktopServices.openUrl(QUrl.fromLocalFile(...)) 对含 '#'
+        的路径会因 file:// 把 '#' 编码成 %23、ShellExecute 又无法还原而报
+        error 2（找不到文件）。改用 os.startfile 直接传文件系统路径最稳妥。
+        """
+        try:
+            os.startfile(path)
+        except Exception:
+            # 极端兜底：退回 QDesktopServices
+            QDesktopServices.openUrl(QUrl.fromLocalFile(path))
 
     def _on_preview_error(self, gen: int, msg: str):
         if gen != self._preview_gen:

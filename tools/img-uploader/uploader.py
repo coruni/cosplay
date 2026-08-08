@@ -12,6 +12,21 @@ from image_utils import compress_image
 DEFAULT_UPLOAD_PATH = '/api/1/upload'
 
 
+def _session() -> 'requests.Session':
+    """直连会话：忽略系统代理（trust_env=False）。
+
+    桌面发布工具直接连图床。若系统残留坏代理（HTTP(S)_PROXY 指向不可达
+    地址），requests 默认走代理会导致 ProxyError / 连接被拒。这里强制
+    直连，避免坏代理阻断上传。"""
+    s = requests.Session()
+    s.trust_env = False
+    return s
+
+
+# 复用连接池 + 忽略系统代理
+_SESSION = _session()
+
+
 @dataclass
 class UploadResult:
     url: str
@@ -71,7 +86,7 @@ def upload_image(
 
     headers = {'X-API-Key': config.api_key.strip()}
 
-    resp = requests.post(api_url, files=form, headers=headers, timeout=120)
+    resp = _SESSION.post(api_url, files=form, headers=headers, timeout=120)
 
     if on_progress:
         on_progress(100)
